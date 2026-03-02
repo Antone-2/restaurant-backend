@@ -116,7 +116,9 @@ const paymentLimiter = rateLimit({
 app.use(morgan('combined', { stream: morganStream }));
 const io = new Server(server, {
     cors: {
-        origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173', 'http://localhost:3000'],
+        origin: process.env.ALLOWED_ORIGINS
+            ? process.env.ALLOWED_ORIGINS.split(',')
+            : ['http://localhost:5173', 'http://localhost:3000', 'https://restaurant-frontend-ochre-rho.vercel.app'],
         methods: ['GET', 'POST']
     }
 });
@@ -300,7 +302,13 @@ const strictPaymentLimiter = rateLimit({
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:8080'];
+    : [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'http://localhost:5174',
+        'http://localhost:8080',
+        'https://restaurant-frontend-ochre-rho.vercel.app'
+    ];
 
 const corsOptions = {
     origin: (origin, callback) => {
