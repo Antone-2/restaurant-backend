@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 const api = require('sib-api-v3-sdk');
@@ -87,14 +88,13 @@ const server = http.createServer(app);
 const rateLimit = require('express-rate-limit');
 
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    windowMs: 15 * 60 * 1000,// 15 minutes
+    max: 100,
     message: { error: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// Stricter rate limiter for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10, // limit each IP to 10 requests per windowMs
@@ -163,9 +163,14 @@ const emitToAll = (event, data) => {
 };
 
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS).split(',').map(e => e.trim());
+// Environment variables with fallbacks for production
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-in-production';
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : ['admin@thequill.com'];
+
+// Frontend URL for email links (critical for production)
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -293,12 +298,29 @@ const strictPaymentLimiter = rateLimit({
     keyGenerator: (req, res) => `${req.ip}-${req.body?.phone || 'unknown'}` // Rate limit by IP + phone
 });
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS).split(',');
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174', 'http://localhost:8080'];
+
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        // In production, you might want to restrict this
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        // In development, allow all origins
+        if (NODE_ENV === 'development') {
+            return callback(null, true);
+        }
+
+        // In production, check against allowed origins
+        if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
+            // Log blocked origins for debugging
+            console.log(`CORS blocked origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -306,6 +328,19 @@ const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
 };
+
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "wss:", "https:"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors(corsOptions));
 app.use(apiLimiter);
@@ -1090,7 +1125,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
         await user.save();
 
         // Send verification email
-        const verifyUrl = `http://localhost:8080/verify-email?token=${verifyToken}`;
+        const verifyUrl = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
         const emailSubject = `📧 Verify Your Email - The Quill Restaurant`;
         const emailHtml = `
             <!DOCTYPE html>
@@ -1299,7 +1334,7 @@ app.post('/api/auth/resend-verification', authLimiter, async (req, res) => {
             { expiresIn: '24h' }
         );
 
-        const verifyUrl = `http://localhost:8080/verify-email?token=${verifyToken}`;
+        const verifyUrl = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
         const emailSubject = `📧 Verify Your Email - The Quill Restaurant`;
         const emailHtml = `
             <!DOCTYPE html>
@@ -1397,7 +1432,7 @@ app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        const resetUrl = `http://localhost:8080/reset-password?token=${resetToken}`;
+        const resetUrl = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
 
         const emailSubject = `🔐 Reset Your Password - The Quill Restaurant`;
         const emailHtml = `

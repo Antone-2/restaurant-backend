@@ -1,0 +1,66 @@
+# Render.com deployment configuration for The Quill Backend
+# This file defines the deployment settings for the Node.js backend
+
+services:
+  # Backend API Service
+  - type: web
+    name: the-quill-backend
+    env: node
+    region: oregon  # Closest to Kenya, or use frankfurt for EU
+    
+    # Build settings
+    buildCommand: npm ci
+    startCommand: node src/index.js
+    
+    # Auto-deploy from GitHub
+    repo: https://github.com/your-username/the-quill
+    branch: main
+    
+    # Environment variables (set these in Render dashboard for security)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      
+      # Database - MongoDB Atlas connection string
+      # - key: MONGODB_URI
+      #   sync: false  # Set this in Render dashboard
+      
+      # JWT Secret - generate a strong random string
+      # - key: JWT_SECRET
+      #   sync: false  # Set this in Render dashboard
+      
+      # Brevo/SendinBlue API (for email)
+      # - key: BREVO_API_KEY
+      #   sync: false  # Set this in Render dashboard
+      
+      # CORS origins (comma-separated)
+      # - key: CORS_ORIGIN
+      #   value: https://your-frontend.vercel.app,https://your-custom-domain.com
+      
+      # Optional: MPesa (Safaricom) - only if using M-Pesa
+      # - key: MPESA_CONSUMER_KEY
+      #   sync: false
+      # - key: MPESA_CONSUMER_SECRET
+      #   sync: false
+      # - key: MPESA_PASSKEY
+      #   sync: false
+      # - key: MPESA_SHORTCODE
+      #   sync: false
+    
+    # Plan - Free tier (sleeps after 15 min of inactivity)
+    plan: free
+    
+    # Health check endpoint
+    healthCheckPath: /api/health
+    
+    # Auto-deploy settings
+    autoDeploy: true
+
+# Database (optional - use MongoDB Atlas free tier instead)
+# databases:
+#   - name: the-quill-mongo
+#     type: mongo
+#     plan: free
+#     region: oregon
