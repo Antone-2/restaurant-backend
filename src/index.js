@@ -855,7 +855,7 @@ const sendOrderNotifications = async (order) => {
                             <tr>
                                 <td style="background-color: #f8f9fa; padding: 20px; text-align: center;">
                                     <p style="color: #999999; margin: 0; font-size: 12px;">© 2026 The Quill Restaurant. All rights reserved.</p>
-                                    <p style="color: #999999; margin: 5px 0 0 0; font-size: 11px;">Busia, Kenya</p>
+                                    <p style="color: #999999; margin: 5px 0 0 0; font-size: 11px;">Nambale, Kisumu - Busia Rd, Busia, Kenya</p>
                                 </td>
                             </tr>
                         </table>
@@ -999,7 +999,7 @@ const sendReservationNotifications = async (reservation) => {
     <tr>
         <td style="background-color: #f8f9fa; padding: 20px; text-align: center;">
             <p style="color: #999999; margin: 0; font-size: 12px;">© 2026 The Quill Restaurant. All rights reserved.</p>
-            <p style="color: #999999; margin: 5px 0 0 0; font-size: 11px;">Busia, Kenya</p>
+            <p style="color: #999999; margin: 5px 0 0 0; font-size: 11px;">Nambale, Kisumu - Busia Rd, Busia, Kenya</p>
         </td>
     </tr>
                         </table >
@@ -1134,7 +1134,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 
         // Send verification email
         const verifyUrl = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
-        const emailSubject = `📧 Verify Your Email - The Quill Restaurant`;
+        const emailSubject = `🎉 Welcome to The Quill Restaurant - Verify Your Email`;
         const emailHtml = `
             <!DOCTYPE html>
             <html>
@@ -1146,48 +1146,82 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
                 <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
                     <tr>
                         <td align="center">
-                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                                <!-- Header -->
                                 <tr>
-                                    <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; text-align: center;">
-                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">📧 The Quill</h1>
-                                        <p style="color: #a0a0a0; margin: 10px 0 0 0; font-size: 14px;">Email Verification</p>
+                                    <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 30px; text-align: center;">
+                                        <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;">
+                                            <span style="color: white; font-size: 40px;">🍽️</span>
+                                        </div>
+                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">The Quill Restaurant</h1>
+                                        <p style="color: #a0a0a0; margin: 10px 0 0 0; font-size: 14px;">Fine Dining Experience</p>
                                     </td>
                                 </tr>
+                                <!-- Content -->
                                 <tr>
                                     <td style="padding: 40px 30px;">
                                         <div style="text-align: center; margin-bottom: 30px;">
-                                            <div style="width: 80px; height: 80px; background-color: #3498db; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                                                <span style="color: white; font-size: 40px;">📧</span>
+                                            <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); border-radius: 50%; margin: 0 auto 25px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);">
+                                                <span style="color: white; font-size: 50px;">📧</span>
                                             </div>
-                                            <h2 style="color: #1a1a2e; margin: 0 0 10px 0; font-size: 24px;">Verify Your Email</h2>
-                                            <p style="color: #666666; margin: 0;">Hello <strong>${user.name}</strong>!</p>
+                                            <h2 style="color: #1a1a2e; margin: 0 0 15px 0; font-size: 28px; font-weight: 700;">Welcome to The Quill, ${user.name}! 🎉</h2>
+                                            <p style="color: #666666; margin: 0; font-size: 16px; line-height: 1.6;">
+                                                Thank you for joining our restaurant family! We're excited to have you with us.
+                                            </p>
                                         </div>
                                         
-                                        <p style="color: #666666; font-size: 14px; line-height: 1.6;">
-                                            Thank you for registering with The Quill Restaurant. Please verify your email address by clicking the button below:
+                                        <p style="color: #666666; font-size: 14px; line-height: 1.6; text-align: center;">
+                                            To get started, please verify your email address by clicking the button below:
                                         </p>
                                         
-                                        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                                             <tr>
                                                 <td align="center">
-                                                    <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                                                        Verify Email
+                                                    <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: #ffffff; padding: 16px 45px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);">
+                                                        Verify My Account
                                                     </a>
                                                 </td>
                                             </tr>
                                         </table>
                                         
-                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 20px;">
-                                            This link will expire in <strong>24 hours</strong>.
+                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 25px;">
+                                            This verification link will expire in <strong>24 hours</strong>.
                                         </p>
                                         
-                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 20px;">
-                                            If you didn't create an account, please ignore this email.
+                                        <!-- What to Expect -->
+                                        <div style="background-color: #f8f9fa; border-radius: 10px; padding: 25px; margin-top: 30px;">
+                                            <h3 style="color: #1a1a2e; margin: 0 0 15px 0; font-size: 16px; text-align: center;">What Awaits You ✨</h3>
+                                            <table width="100%" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #666666; font-size: 14px;">
+                                                        <span style="margin-right: 8px;">🍕</span> Order delicious food online
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #666666; font-size: 14px;">
+                                                        <span style="margin-right: 8px;">📅</span> Reserve tables for special occasions
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #666666; font-size: 14px;">
+                                                        <span style="margin-right: 8px;">🚗</span> Book parking spaces
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #666666; font-size: 14px;">
+                                                        <span style="margin-right: 8px;">🎁</span> Get exclusive offers and deals
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        
+                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 25px;">
+                                            If you didn't create an account, please ignore this email or contact us if you have concerns.
                                         </p>
                                         
-                                        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 30px; text-align: center;">
+                                        <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 25px; text-align: center;">
                                             <p style="color: #999999; margin: 0; font-size: 11px;">
-                                                The Quill Restaurant · Busia, Kenya<br>
+                                                The Quill Restaurant · Nambale, Kisumu - Busia Rd, Busia, Kenya<br>
                                                 © 2026 All rights reserved.
                                             </p>
                                         </div>
@@ -1355,48 +1389,51 @@ app.post('/api/auth/resend-verification', authLimiter, async (req, res) => {
                 <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
                     <tr>
                         <td align="center">
-                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
                                 <tr>
-                                    <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; text-align: center;">
-                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">📧 The Quill</h1>
+                                    <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 30px; text-align: center;">
+                                        <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;">
+                                            <span style="color: white; font-size: 40px;">🍽️</span>
+                                        </div>
+                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">The Quill Restaurant</h1>
                                         <p style="color: #a0a0a0; margin: 10px 0 0 0; font-size: 14px;">Email Verification</p>
                                     </td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 40px 30px;">
                                         <div style="text-align: center; margin-bottom: 30px;">
-                                            <div style="width: 80px; height: 80px; background-color: #3498db; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                                                <span style="color: white; font-size: 40px;">📧</span>
+                                            <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); border-radius: 50%; margin: 0 auto 25px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);">
+                                                <span style="color: white; font-size: 50px;">📧</span>
                                             </div>
-                                            <h2 style="color: #1a1a2e; margin: 0 0 10px 0; font-size: 24px;">Verify Your Email</h2>
-                                            <p style="color: #666666; margin: 0;">Hello <strong>${user.name}</strong>!</p>
+                                            <h2 style="color: #1a1a2e; margin: 0 0 15px 0; font-size: 28px; font-weight: 700;">Verify Your Email</h2>
+                                            <p style="color: #666666; margin: 0; font-size: 16px;">Hello <strong>${user.name}</strong>!</p>
                                         </div>
                                         
-                                        <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                                        <p style="color: #666666; font-size: 14px; line-height: 1.6; text-align: center;">
                                             Thank you for registering with The Quill Restaurant. Please verify your email address by clicking the button below:
                                         </p>
                                         
                                         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                                             <tr>
                                                 <td align="center">
-                                                    <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: #ffffff; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                                                    <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: #ffffff; padding: 16px 45px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);">
                                                         Verify Email
                                                     </a>
                                                 </td>
                                             </tr>
                                         </table>
                                         
-                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 20px;">
-                                            This link will expire in <strong>24 hours</strong>.
+                                        <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 25px;">
+                                            This verification link will expire in <strong>24 hours</strong>.
                                         </p>
                                         
                                         <p style="color: #999999; font-size: 12px; text-align: center; margin-top: 20px;">
-                                            If you didn't create an account, please ignore this email.
+                                            If you didn't create an account, please ignore this email or contact us if you have concerns.
                                         </p>
                                         
                                         <div style="background-color: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 30px; text-align: center;">
                                             <p style="color: #999999; margin: 0; font-size: 11px;">
-                                                The Quill Restaurant · Busia, Kenya<br>
+                                                The Quill Restaurant · Nambale, Kisumu - Busia Rd, Busia, Kenya<br>
                                                 © 2026 All rights reserved.
                                             </p>
                                         </div>
@@ -1745,33 +1782,98 @@ app.post('/api/auth/verify-email', async (req, res) => {
                 <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
                     <tr>
                         <td align="center">
-                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                            <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                                <!-- Header with Logo -->
                                 <tr>
-                                    <td style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); padding: 30px; text-align: center;">
-                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">🎉 The Quill</h1>
-                                        <p style="color: #a0a0a0; margin: 10px 0 0 0; font-size: 14px;">Welcome!</p>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 40px 30px; text-align: center;">
-                                        <div style="width: 80px; height: 80px; background-color: #e74c3c; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                                    <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px 30px; text-align: center;">
+                                        <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center;">
                                             <span style="color: white; font-size: 40px;">🍽️</span>
                                         </div>
-                                        <h2 style="color: #1a1a2e; margin: 0 0 10px 0; font-size: 24px;">Welcome to The Quill!</h2>
-                                        <p style="color: #666666; margin: 0;">Hello <strong>${user.name}</strong>!</p>
-                                        <p style="color: #666666; font-size: 14px; margin-top: 20px;">
-                                            Your email has been verified successfully. You can now enjoy all features of The Quill Restaurant:
+                                        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">The Quill Restaurant</h1>
+                                        <p style="color: #a0a0a0; margin: 10px 0 0 0; font-size: 14px;">Fine Dining Experience</p>
+                                    </td>
+                                </tr>
+                                <!-- Welcome Content -->
+                                <tr>
+                                    <td style="padding: 40px 30px; text-align: center;">
+                                        <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%); border-radius: 50%; margin: 0 auto 25px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);">
+                                            <span style="color: white; font-size: 50px;">✓</span>
+                                        </div>
+                                        
+                                        <h2 style="color: #1a1a2e; margin: 0 0 15px 0; font-size: 28px; font-weight: 700;">Welcome Aboard, ${user.name}! 🎉</h2>
+                                        
+                                        <p style="color: #666666; font-size: 16px; margin: 0 0 25px 0; line-height: 1.6;">
+                                            Your account has been successfully verified. We're thrilled to have you join <strong>The Quill</strong> family!
                                         </p>
-                                        <ul style="color: #666666; font-size: 14px; text-align: left; margin: 20px 0;">
-                                            <li>Order food online</li>
-                                            <li>Make table reservations</li>
-                                            <li>Reserve parking spaces</li>
-                                            <li>Track your orders in real-time</li>
-                                            <li>Exclusive offers and deals</li>
-                                        </ul>
-                                        <p style="color: #999999; font-size: 12px; margin-top: 30px;">
-                                            We look forward to serving you!
+                                        
+                                        <!-- Features Grid -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                            <tr>
+                                                <td style="padding: 10px;">
+                                                    <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fa; border-radius: 10px; padding: 20px;">
+                                                        <tr>
+                                                            <td style="text-align: center;">
+                                                                <div style="width: 50px; height: 50px; background: #3498db; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
+                                                                    <span style="color: white; font-size: 24px;">🍕</span>
+                                                                </div>
+                                                                <p style="color: #1a1a2e; font-size: 14px; font-weight: 600; margin: 0;">Order Online</p>
+                                                                <p style="color: #999999; font-size: 12px; margin: 5px 0 0 0;">Browse our menu</p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <td style="padding: 10px;">
+                                                    <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fa; border-radius: 10px; padding: 20px;">
+                                                        <tr>
+                                                            <td style="text-align: center;">
+                                                                <div style="width: 50px; height: 50px; background: #9b59b6; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
+                                                                    <span style="color: white; font-size: 24px;">📅</span>
+                                                                </div>
+                                                                <p style="color: #1a1a2e; font-size: 14px; font-weight: 600; margin: 0;">Reserve Tables</p>
+                                                                <p style="color: #999999; font-size: 12px; margin: 5px 0 0 0;">Book your spot</p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                                <td style="padding: 10px;">
+                                                    <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fa; border-radius: 10px; padding: 20px;">
+                                                        <tr>
+                                                            <td style="text-align: center;">
+                                                                <div style="width: 50px; height: 50px; background: #e67e22; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center;">
+                                                                    <span style="color: white; font-size: 24px;">🚗</span>
+                                                                </div>
+                                                                <p style="color: #1a1a2e; font-size: 14px; font-weight: 600; margin: 0;">Parking</p>
+                                                                <p style="color: #999999; font-size: 12px; margin: 5px 0 0 0;">Reserve spaces</p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- CTA Button -->
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                            <tr>
+                                                <td align="center">
+                                                    <a href="${FRONTEND_URL}/menu" style="display: inline-block; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: #ffffff; padding: 16px 45px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);">
+                                                        Explore Our Menu
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="color: #999999; font-size: 13px; margin-top: 30px; line-height: 1.6;">
+                                            Have questions? We're here to help! Contact us at <a href="mailto:pomraningrichard@gmail.com" style="color: #3498db;">pomraningrichard@gmail.com</a>
                                         </p>
+                                    </td>
+                                </tr>
+                                <!-- Footer -->
+                                <tr>
+                                    <td style="background-color: #f8f9fa; padding: 25px; text-align: center;">
+                                        <p style="color: #1a1a2e; margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Follow Us</p>
+                                        <p style="color: #666666; margin: 0 0 15px 0; font-size: 12px;">Stay updated with our latest offerings</p>
+                                        <p style="color: #999999; margin: 0; font-size: 11px;">© 2026 The Quill Restaurant. All rights reserved.</p>
+                                        <p style="color: #999999; margin: 5px 0 0 0; font-size: 11px;">Nambale, Kisumu - Busia Rd, Busia, Kenya</p>
                                     </td>
                                 </tr>
                             </table>
@@ -3662,9 +3764,9 @@ app.post('/api/orders/:id/estimate-delivery', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Restaurant location (default: Busia CBD)
-        const restaurantLat = parseFloat(process.env.RESTAURANT_LAT || -1.2921);
-        const restaurantLng = parseFloat(process.env.RESTAURANT_LNG || 36.8219);
+        // Restaurant location (default: Nambale, Busia)
+        const restaurantLat = parseFloat(process.env.RESTAURANT_LAT || '0.0618');
+        const restaurantLng = parseFloat(process.env.RESTAURANT_LNG || '34.1069');
 
         // Calculate distance using Haversine formula (in km)
         const haversine = (lat1, lon1, lat2, lon2) => {
