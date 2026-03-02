@@ -116,7 +116,7 @@ const paymentLimiter = rateLimit({
 app.use(morgan('combined', { stream: morganStream }));
 const io = new Server(server, {
     cors: {
-        origin: (process.env.ALLOWED_ORIGINS).split(','),
+        origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173', 'http://localhost:3000'],
         methods: ['GET', 'POST']
     }
 });
