@@ -260,7 +260,7 @@ const validateOrderInput = (req, res, next) => {
             if (!Array.isArray(items) || items.length === 0) {
                 return res.status(400).json({ error: 'Order must have items' });
             }
-            if (typeof total !== 'number' || total <= 0) {
+            if (typeof total !== 'number' || total < 0) {
                 return res.status(400).json({ error: 'Valid total amount required' });
             }
         }
