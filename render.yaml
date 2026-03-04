@@ -43,6 +43,24 @@ services:
       # Format: https://your-frontend.vercel.app,http://localhost:5173
       # NOTE: Replace 'your-frontend' with your actual Vercel frontend URL
       - key: ALLOWED_ORIGINS
+        value: https://the-quill.vercel.app,https://restaurant-backend-30ab.onrender.com
+      
+      # Admin emails for admin access (comma-separated)
+      # IMPORTANT: Set this in Render dashboard for security
+      # - key: ADMIN_EMAILS
+      #   sync: false  # Uncomment and set in Render dashboard
+      
+      # JWT Secret - generate a strong random string
+      # IMPORTANT: Set this in Render dashboard for security
+      # - key: JWT_SECRET
+      #   sync: false  # Uncomment and set in Render dashboard
+      
+      # MongoDB URI - Set in Render dashboard
+      # - key: MONGODB_URI
+      #   sync: false  # Uncomment and set in Render dashboard
+      
+      # Frontend URL for email links
+      - key: FRONTEND_URL
         value: https://the-quill.vercel.app
       
       # Optional: MPesa (Safaricom) - only if using M-Pesa
