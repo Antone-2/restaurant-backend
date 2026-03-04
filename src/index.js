@@ -88,7 +88,7 @@ const server = http.createServer(app);
 const rateLimit = require('express-rate-limit');
 
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,// 15 minutes
+    windowMs: 15 * 60 * 1000,
     max: 100,
     message: { error: 'Too many requests, please try again later' },
     standardHeaders: true,
@@ -96,30 +96,27 @@ const apiLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // limit each IP to 10 requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 10,
     message: { error: 'Too many authentication attempts, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
 });
-
-// Payment endpoint rate limiter
 const paymentLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 payment requests per windowMs
+    windowMs: 15 * 60 * 1000,
+    max: 5,
     message: { error: 'Too many payment attempts, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
 });
-
-// Morgan HTTP request logging
 app.use(morgan('combined', { stream: morganStream }));
 const io = new Server(server, {
     cors: {
         origin: process.env.ALLOWED_ORIGINS
             ? process.env.ALLOWED_ORIGINS.split(',')
-            : ['http://localhost:5173', 'http://localhost:3000', 'https://restaurant-frontend-ochre-rho.vercel.app'],
-        methods: ['GET', 'POST']
+            : ['*'],
+        methods: ['GET', 'POST'],
+        credentials: true
     }
 });
 const connectedClients = new Map();
@@ -165,14 +162,12 @@ const emitToAll = (event, data) => {
 };
 
 const PORT = process.env.PORT || 3001;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV;
 
-// Environment variables with fallbacks for production
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-dev-secret-change-in-production';
-const ADMIN_EMAILS = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : ['admin@thequill.com'];
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim()) : [];
 
-// Frontend URL for email links (critical for production)
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:8080';
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -194,7 +189,6 @@ const authenticateToken = (req, res, next) => {
 };
 
 const requireAuth = (req, res, next) => {
-    // Check if user is authenticated (req.user is set by authenticateToken middleware)
     if (!req.user) {
         return res.status(401).json({ error: 'Authentication required. Please log in.' });
     }
@@ -202,15 +196,12 @@ const requireAuth = (req, res, next) => {
 };
 
 const requireAdmin = async (req, res, next) => {
-    // First check if user is authenticated
     if (!req.user) {
         return res.status(401).json({ error: 'Authentication required. Admin access only.' });
     }
 
-    // Check 1: Email in ADMIN_EMAILS list (from environment)
     const isEnvAdmin = ADMIN_EMAILS.includes(req.user.email);
 
-    // Check 2: User's isAdmin flag in database
     let isDbAdmin = false;
     if (mongoConnected) {
         try {
@@ -223,7 +214,6 @@ const requireAdmin = async (req, res, next) => {
         }
     }
 
-    // Allow access if either check passes
     if (!isEnvAdmin && !isDbAdmin) {
         return res.status(403).json({ error: 'Admin access required' });
     }
@@ -231,9 +221,6 @@ const requireAdmin = async (req, res, next) => {
     next();
 };
 
-// ========== VALIDATION SCHEMAS & MIDDLEWARE ==========
-
-// Helper function to validate and sanitize input
 const sanitizeInput = (obj) => {
     if (typeof obj !== 'object' || obj === null) return obj;
 
@@ -241,7 +228,6 @@ const sanitizeInput = (obj) => {
     for (const key in obj) {
         const value = obj[key];
         if (typeof value === 'string') {
-            // Remove HTML tags, dangerous characters
             sanitized[key] = value
                 .replace(/<[^>]*>/g, '')
                 .replace(/[<>\"']/g, '')
@@ -254,15 +240,11 @@ const sanitizeInput = (obj) => {
     }
     return sanitized;
 };
-
-// Input validation middleware
 const validateOrderInput = (req, res, next) => {
     try {
         if (req.body) {
             req.body = sanitizeInput(req.body);
         }
-
-        // Validate required fields
         if (req.method === 'POST' && req.path.includes('/orders')) {
             const { customerName, email, phone, items, total } = req.body;
 
@@ -288,46 +270,31 @@ const validateOrderInput = (req, res, next) => {
         res.status(400).json({ error: 'Invalid input format' });
     }
 };
-
-// Stricter payment endpoint limiter (3 attempts per 30 minutes)
 const strictPaymentLimiter = rateLimit({
-    windowMs: 30 * 60 * 1000, // 30 minutes
-    max: 3, // limit each IP to 3 payment requests per windowMs
+    windowMs: 30 * 60 * 1000,
+    max: 3,
     message: { error: 'Too many payment attempts. Please wait before trying again.' },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req, res) => req.user && ADMIN_EMAILS.includes(req.user.email), // Skip for admins
-    keyGenerator: (req, res) => `${req.ip}-${req.body?.phone || 'unknown'}` // Rate limit by IP + phone
+    skip: (req, res) => req.user && ADMIN_EMAILS.includes(req.user.email),
+    keyGenerator: (req, res) => `${req.ip}-${req.body?.phone}`
 });
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
-    : [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'http://localhost:5174',
-        'http://localhost:8080',
-        'https://restaurant-frontend-ochre-rho.vercel.app'
-    ];
+    : [];
 
 const corsOptions = {
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        // In production, you might want to restrict this
         if (!origin) {
             return callback(null, true);
         }
-
-        // In development, allow all origins
-        if (NODE_ENV === 'development') {
+        if (NODE_ENV) {
             return callback(null, true);
         }
-
-        // In production, check against allowed origins
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            // Log blocked origins for debugging
             console.log(`CORS blocked origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
@@ -353,7 +320,7 @@ app.use(helmet({
 app.use(cors(corsOptions));
 app.use(apiLimiter);
 app.use(express.json());
-app.use(validateOrderInput); // Add input validation
+app.use(validateOrderInput);
 app.use(authenticateToken);
 let mongoConnected = false;
 
@@ -390,7 +357,6 @@ const orderSchema = new mongoose.Schema({
         enum: ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'],
         default: 'pending'
     },
-    // Delivery tracking
     deliveryType: { type: String, enum: ['pickup', 'delivery'], default: 'pickup' },
     deliveryAddress: {
         street: String,
@@ -406,14 +372,11 @@ const orderSchema = new mongoose.Schema({
     deliveryStartedAt: Date,
     deliveryCompletedAt: Date,
     estimatedDeliveryTime: Date,
-    // Refund tracking
     refundAmount: { type: Number, default: 0 },
     refundReason: String,
     refundedAt: Date,
     refundProcessedBy: String,
-    // Invoice
     invoiceNumber: String,
-    // Status history
     statusHistory: [{
         status: String,
         timestamp: Date,
@@ -458,7 +421,7 @@ const tableSchema = new mongoose.Schema({
     capacity: { type: Number, required: true, default: 4 },
     status: { type: String, enum: ['available', 'occupied', 'reserved', 'maintenance'], default: 'available' },
     section: { type: String, default: 'main' },
-    position: { type: String, default: '' }, // e.g., "window", "corner", "center"
+    position: { type: String, default: '' },
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
@@ -511,11 +474,9 @@ const menuItemSchema = new mongoose.Schema({
     imageUrl: String,
     popular: { type: Boolean, default: false },
     available: { type: Boolean, default: true },
-    // Inventory tracking
     stockQuantity: { type: Number, default: 0 },
     lowStockThreshold: { type: Number, default: 5 },
     trackInventory: { type: Boolean, default: false },
-    // Nutritional information
     nutritionalInfo: {
         calories: { type: Number, default: 0 },
         protein: { type: Number, default: 0 },
@@ -524,7 +485,7 @@ const menuItemSchema = new mongoose.Schema({
         fiber: { type: Number, default: 0 },
         sodium: { type: Number, default: 0 },
         allergens: [String],
-        dietaryInfo: [String] // vegetarian, vegan, gluten-free, etc.
+        dietaryInfo: [String]
     },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
@@ -546,34 +507,28 @@ const userSchema = new mongoose.Schema({
     phone: String,
     address: String,
     emailVerified: { type: Boolean, default: false },
-    // Admin role
     role: { type: String, enum: ['customer', 'admin', 'staff'], default: 'customer' },
     isAdmin: { type: Boolean, default: false },
-    // Multiple addresses
     addresses: [{
         _id: String,
-        label: String, // 'Home', 'Work', 'Other'
+        label: String,
         street: String,
         city: String,
         instructions: String,
         isDefault: { type: Boolean, default: false }
     }],
-    // Payment methods
     paymentMethods: [{
         _id: String,
         type: { type: String, enum: ['card', 'mpesa'], required: true },
         label: String,
-        // For card
         last4: String,
         expiryMonth: Number,
         expiryYear: Number,
         cardholderName: String,
-        // For M-Pesa
         mobileNumber: String,
         isDefault: { type: Boolean, default: false },
         addedAt: { type: Date, default: Date.now }
     }],
-    // Notification preferences
     notificationPreferences: {
         orderUpdates: { type: Boolean, default: true },
         promotionalEmails: { type: Boolean, default: false },
@@ -581,7 +536,6 @@ const userSchema = new mongoose.Schema({
         marketingSMS: { type: Boolean, default: false },
         pushNotifications: { type: Boolean, default: true }
     },
-    // Privacy & Account
     dataPrivacyAgreed: { type: Boolean, default: false },
     accountStatus: { type: String, enum: ['active', 'suspended', 'deleted'], default: 'active' },
     deletedAt: Date,
@@ -606,7 +560,6 @@ const wishlistSchema = new mongoose.Schema({
 });
 const Wishlist = mongoose.model('Wishlist', wishlistSchema);
 
-// Shopping Cart Schema - Persistent cart storage
 const cartSchema = new mongoose.Schema({
     _id: String,
     userId: { type: String, required: true },
@@ -630,10 +583,9 @@ const cartSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now }
 });
 cartSchema.index({ userId: 1 });
-cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
+cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 const Cart = mongoose.model('Cart', cartSchema);
 
-// Loyalty Points Schema
 const loyaltyPointsSchema = new mongoose.Schema({
     _id: String,
     userId: { type: String, required: true },
@@ -653,8 +605,6 @@ const loyaltyPointsSchema = new mongoose.Schema({
     updatedAt: { type: Date, default: Date.now }
 });
 const LoyaltyPoints = mongoose.model('LoyaltyPoints', loyaltyPointsSchema);
-
-// Coupon/Promo Code Schema
 const couponSchema = new mongoose.Schema({
     _id: String,
     code: { type: String, required: true, unique: true },
@@ -672,7 +622,6 @@ const couponSchema = new mongoose.Schema({
 });
 const Coupon = mongoose.model('Coupon', couponSchema);
 
-// Delivery Partner Schema
 const deliveryPartnerSchema = new mongoose.Schema({
     _id: String,
     name: { type: String, required: true },
@@ -686,11 +635,11 @@ const deliveryPartnerSchema = new mongoose.Schema({
         longitude: Number,
         updatedAt: Date
     },
-    assignedOrders: [String], // Order IDs
+    assignedOrders: [String],
     completedOrders: { type: Number, default: 0 },
     rating: { type: Number, default: 5.0, min: 1, max: 5 },
-    averageDeliveryTime: { type: Number, default: 0 }, // minutes
-    totalDistance: { type: Number, default: 0 }, // km
+    averageDeliveryTime: { type: Number, default: 0 },
+    totalDistance: { type: Number, default: 0 },
     bankDetails: {
         accountName: String,
         bankName: String,
@@ -708,8 +657,6 @@ const deliveryPartnerSchema = new mongoose.Schema({
 deliveryPartnerSchema.index({ status: 1 });
 deliveryPartnerSchema.index({ 'currentLocation.latitude': 1, 'currentLocation.longitude': 1 });
 const DeliveryPartner = mongoose.model('DeliveryPartner', deliveryPartnerSchema);
-
-// Support Ticket Schema
 const ticketSchema = new mongoose.Schema({
     _id: String,
     userId: String,
@@ -762,7 +709,7 @@ const sendEmailNotification = async (to, subject, htmlContent) => {
         return true;
     } catch (error) {
         console.error(' Email error:', error.message);
-        console.error('📋 Details:', error.response?.body?.message || error.response?.statusCode);
+        console.error(' Details:', error.response?.body?.message || error.response?.statusCode);
         return false;
     }
 };
@@ -873,7 +820,7 @@ const sendOrderNotifications = async (order) => {
 
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
-        const adminSubject = `🛒 New Order Received - #${orderNumber}`;
+        const adminSubject = ` New Order Received - #${orderNumber}`;
         const adminHtml = `
             <!DOCTYPE html>
             <html>
@@ -1015,7 +962,7 @@ const sendReservationNotifications = async (reservation) => {
 
     const adminEmail = process.env.ADMIN_EMAIL;
     if (adminEmail) {
-        const adminSubject = `📅 New Table Reservation - ${reservationId}`;
+        const adminSubject = ` New Table Reservation - ${reservationId}`;
         const adminHtml = `
         <!DOCTYPE html>
         <html>
@@ -1115,7 +1062,6 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const userId = 'USR-' + uuidv4().substring(0, 8).toUpperCase();
 
-        // Generate email verification token
         const verifyToken = jwt.sign(
             { userId, email, type: 'email-verify' },
             JWT_SECRET,
@@ -1132,9 +1078,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 
         await user.save();
 
-        // Send verification email
         const verifyUrl = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
-        const emailSubject = `🎉 Welcome to The Quill Restaurant - Verify Your Email`;
+        const emailSubject = ` Welcome to The Quill Restaurant - Verify Your Email`;
         const emailHtml = `
             <!DOCTYPE html>
             <html>
@@ -1243,7 +1188,6 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // Don't return token - user must verify email first
         res.status(201).json({
             message: 'Registration successful. Please check your email to verify your account.',
             requiresVerification: true,
@@ -1272,22 +1216,18 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // Check if email is verified (skip for admin users)
         const isAdminUser = ADMIN_EMAILS.includes(user.email) || user.isAdmin === true || user.role === 'admin';
 
-        // If email is not verified AND user is not admin, return error
         if (!user.emailVerified && !isAdminUser) {
             return res.status(403).json({ error: 'Please verify your email before logging in' });
         }
 
-        // Generate token for successful login
         const token = jwt.sign(
             { userId: user._id, email: user.email },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
 
-        // Check if user is admin (for response)
         const isAdmin = ADMIN_EMAILS.includes(user.email) || user.isAdmin === true || user.role === 'admin';
 
         res.json({
@@ -1300,7 +1240,6 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     }
 });
 
-// Verify Email
 app.get('/api/auth/verify-email/:token', async (req, res) => {
     try {
         const { token } = req.params;
@@ -1308,15 +1247,11 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
         if (!token) {
             return res.status(400).json({ error: 'Verification token is required' });
         }
-
-        // Verify token
         const decoded = jwt.verify(token, JWT_SECRET);
 
         if (decoded.type !== 'email-verify') {
             return res.status(400).json({ error: 'Invalid verification token' });
         }
-
-        // Find user and update emailVerified
         const user = await User.findById(decoded.userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -1329,7 +1264,6 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
             });
         }
 
-        // Update user
         user.emailVerified = true;
         await user.save();
 
@@ -1350,8 +1284,6 @@ app.get('/api/auth/verify-email/:token', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Resend Verification Email
 app.post('/api/auth/resend-verification', authLimiter, async (req, res) => {
     try {
         const { email } = req.body;
@@ -1369,7 +1301,6 @@ app.post('/api/auth/resend-verification', authLimiter, async (req, res) => {
             return res.json({ message: 'Email is already verified' });
         }
 
-        // Generate new verification token
         const verifyToken = jwt.sign(
             { userId: user._id, email: user.email, type: 'email-verify' },
             JWT_SECRET,
@@ -1454,8 +1385,6 @@ app.post('/api/auth/resend-verification', authLimiter, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Forgot Password - Send reset email
 app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
     try {
         const { email } = req.body;
@@ -1466,11 +1395,8 @@ app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
 
         const user = await User.findOne({ email });
         if (!user) {
-            // Don't reveal if user exists or not for security
             return res.json({ message: 'If an account exists with this email, you will receive a password reset link shortly.' });
         }
-
-        // Generate reset token (valid for 1 hour)
         const resetToken = jwt.sign(
             { userId: user._id, email: user.email, type: 'password-reset' },
             JWT_SECRET,
@@ -1553,8 +1479,6 @@ app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Reset Password - Using the token
 app.post('/api/auth/reset-password', async (req, res) => {
     try {
         const { token, newPassword } = req.body;
@@ -1582,13 +1506,9 @@ app.post('/api/auth/reset-password', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-
-        // Hash the new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         await user.save();
-
-        // Send confirmation email
         const emailSubject = `✅ Password Reset Successful - The Quill Restaurant`;
         const emailHtml = `
             <!DOCTYPE html>
@@ -1638,8 +1558,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Change Password - Authenticated user updates password
 app.post('/api/auth/change-password', async (req, res) => {
     try {
         if (!req.user) {
@@ -1665,19 +1583,14 @@ app.post('/api/auth/change-password', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Verify current password
         const validPassword = await bcrypt.compare(currentPassword, user.password);
         if (!validPassword) {
             return res.status(401).json({ error: 'Current password is incorrect' });
         }
-
-        // Hash the new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         user.updatedAt = new Date();
         await user.save();
-
-        // Send confirmation email
         const emailSubject = `🔐 Password Changed - The Quill Restaurant`;
         const emailHtml = `
             <!DOCTYPE html>
@@ -1735,7 +1648,6 @@ app.post('/api/auth/change-password', async (req, res) => {
     }
 });
 
-// Verify Email
 app.post('/api/auth/verify-email', async (req, res) => {
     try {
         const { token } = req.body;
@@ -1764,13 +1676,11 @@ app.post('/api/auth/verify-email', async (req, res) => {
             return res.json({ message: 'Email already verified. You can proceed to login.' });
         }
 
-        // Mark email as verified
         user.emailVerified = true;
         user.updatedAt = new Date();
         await user.save();
 
-        // Send welcome email
-        const emailSubject = `🎉 Welcome to The Quill Restaurant!`;
+        const emailSubject = ` Welcome to The Quill Restaurant!`;
         const emailHtml = `
             <!DOCTYPE html>
             <html>
@@ -1939,8 +1849,6 @@ app.put('/api/auth/profile', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Change Password (authenticated)
 app.post('/api/auth/change-password', async (req, res) => {
     try {
         if (!req.user) {
@@ -1976,8 +1884,6 @@ app.post('/api/auth/change-password', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Delete Account
 app.delete('/api/auth/account', async (req, res) => {
     try {
         if (!req.user) {
@@ -1990,7 +1896,6 @@ app.delete('/api/auth/account', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        // Delete user's orders, wishlist, etc.
         await Order.deleteMany({ userId: req.user.userId });
         await Wishlist.deleteMany({ userId: req.user.userId });
 
@@ -1999,8 +1904,6 @@ app.delete('/api/auth/account', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Update Notification Preferences
 app.put('/api/auth/preferences', async (req, res) => {
     try {
         if (!req.user) {
@@ -2027,8 +1930,6 @@ app.put('/api/auth/preferences', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Get Saved Addresses
 app.get('/api/auth/addresses', async (req, res) => {
     try {
         if (!req.user) {
@@ -2046,7 +1947,6 @@ app.get('/api/auth/addresses', async (req, res) => {
     }
 });
 
-// Add/Update Address
 app.post('/api/auth/addresses', async (req, res) => {
     try {
         if (!req.user) {
@@ -2074,7 +1974,6 @@ app.post('/api/auth/addresses', async (req, res) => {
             isDefault: isDefault || false
         };
 
-        // If this is set as default, unset others
         if (isDefault && user.addresses) {
             user.addresses.forEach(addr => addr.isDefault = false);
         }
@@ -2090,7 +1989,6 @@ app.post('/api/auth/addresses', async (req, res) => {
     }
 });
 
-// Delete Address
 app.delete('/api/auth/addresses/:id', async (req, res) => {
     try {
         if (!req.user) {
@@ -2113,8 +2011,6 @@ app.delete('/api/auth/addresses/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Set Default Address
 app.put('/api/auth/addresses/:id/default', async (req, res) => {
     try {
         if (!req.user) {
@@ -2140,10 +2036,6 @@ app.put('/api/auth/addresses/:id/default', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ========== PAYMENT METHOD MANAGEMENT ==========
-
-// Get Payment Methods
 app.get('/api/auth/payment-methods', async (req, res) => {
     try {
         if (!req.user) {
@@ -2154,8 +2046,6 @@ app.get('/api/auth/payment-methods', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-
-        // Return masked payment methods for security
         const methods = (user.paymentMethods || []).map(m => ({
             _id: m._id,
             type: m.type,
@@ -2173,8 +2063,6 @@ app.get('/api/auth/payment-methods', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Add Payment Method
 app.post('/api/auth/payment-methods', async (req, res) => {
     try {
         if (!req.user) {
@@ -2223,8 +2111,6 @@ app.post('/api/auth/payment-methods', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Update Payment Method
 app.put('/api/auth/payment-methods/:id', async (req, res) => {
     try {
         if (!req.user) {
@@ -2253,8 +2139,6 @@ app.put('/api/auth/payment-methods/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Delete Payment Method
 app.delete('/api/auth/payment-methods/:id', async (req, res) => {
     try {
         if (!req.user) {
@@ -2275,7 +2159,6 @@ app.delete('/api/auth/payment-methods/:id', async (req, res) => {
 
         user.paymentMethods = (user.paymentMethods || []).filter(m => m._id !== id);
 
-        // If deleted method was default, set first remaining as default
         if (methodToDelete.isDefault && user.paymentMethods.length > 0) {
             user.paymentMethods[0].isDefault = true;
         }
@@ -2288,10 +2171,6 @@ app.delete('/api/auth/payment-methods/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ========== CART PERSISTENCE ==========
-
-// Get Cart
 app.get('/api/cart', async (req, res) => {
     try {
         if (!req.user) {
@@ -2309,8 +2188,6 @@ app.get('/api/cart', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Add to Cart
 app.post('/api/cart/items', async (req, res) => {
     try {
         if (!req.user) {
@@ -2327,8 +2204,6 @@ app.post('/api/cart/items', async (req, res) => {
         if (!cart) {
             cart = new Cart({ _id: uuidv4(), userId: req.user.userId, items: [] });
         }
-
-        // Check if item exists in cart
         const existingItem = cart.items.find(item => item.menuItemId === menuItemId);
         if (existingItem) {
             existingItem.quantity += quantity;
@@ -2351,8 +2226,6 @@ app.post('/api/cart/items', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Update Cart Item
 app.put('/api/cart/items/:itemId', async (req, res) => {
     try {
         if (!req.user) {
@@ -2390,7 +2263,6 @@ app.put('/api/cart/items/:itemId', async (req, res) => {
     }
 });
 
-// Remove from Cart
 app.delete('/api/cart/items/:itemId', async (req, res) => {
     try {
         if (!req.user) {
@@ -2413,8 +2285,6 @@ app.delete('/api/cart/items/:itemId', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Clear Cart
 app.delete('/api/cart', async (req, res) => {
     try {
         if (!req.user) {
@@ -2427,8 +2297,6 @@ app.delete('/api/cart', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Update Cart Metadata
 app.put('/api/cart', async (req, res) => {
     try {
         if (!req.user) {
@@ -2455,10 +2323,6 @@ app.put('/api/cart', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ========== ACCOUNT DELETION & PRIVACY ==========
-
-// Delete Account with Data Privacy Compliance
 app.delete('/api/auth/account', async (req, res) => {
     try {
         if (!req.user) {
@@ -2480,11 +2344,8 @@ app.delete('/api/auth/account', async (req, res) => {
         if (!validPassword) {
             return res.status(401).json({ error: 'Invalid password' });
         }
-
-        // Mark account as deleted instead of hard delete (GDPR compliance)
         user.accountStatus = 'deleted';
         user.deletedAt = new Date();
-        // Optional: hash sensitive data
         user.email = null;
         user.phone = null;
         user.address = null;
@@ -2494,7 +2355,6 @@ app.delete('/api/auth/account', async (req, res) => {
 
         await user.save();
 
-        // Send deletion confirmation email before deletion
         try {
             const emailContent = `
                 <h2>Account Deletion Confirmation</h2>
@@ -2515,8 +2375,6 @@ app.delete('/api/auth/account', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Download User Data (GDPR)
 app.get('/api/auth/download-data', async (req, res) => {
     try {
         if (!req.user) {
@@ -2570,9 +2428,6 @@ app.get('/api/auth/download-data', async (req, res) => {
     }
 });
 
-// ========== ADMIN MANAGEMENT ENDPOINTS ==========
-
-// Grant admin access to a user (admin only)
 app.post('/api/admin/grant-access', requireAdmin, async (req, res) => {
     try {
         const { userId, role } = req.body;
@@ -2597,7 +2452,6 @@ app.post('/api/admin/grant-access', requireAdmin, async (req, res) => {
     }
 });
 
-// Revoke admin access
 app.post('/api/admin/revoke-access', requireAdmin, async (req, res) => {
     try {
         const { userId } = req.body;
@@ -2625,8 +2479,6 @@ app.post('/api/admin/revoke-access', requireAdmin, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// List all users with roles (admin only)
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
         const { page = 1, limit = 20, search } = req.query;
@@ -2673,7 +2525,6 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin reset user password (admin only)
 app.post('/api/admin/reset-user-password', requireAdmin, async (req, res) => {
     try {
         const { userId, newPassword } = req.body;
@@ -2976,7 +2827,6 @@ app.delete('/api/menu/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Bulk create menu items
 app.post('/api/menu/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
@@ -2988,7 +2838,7 @@ app.post('/api/menu/bulk', requireAdmin, async (req, res) => {
         const createdItems = [];
         for (const item of items) {
             if (!item.name || !item.price || !item.category) {
-                continue; // Skip invalid items
+                continue;
             }
 
             const menuItemId = 'M-' + uuidv4().substring(0, 8).toUpperCase();
@@ -3020,7 +2870,6 @@ app.post('/api/menu/bulk', requireAdmin, async (req, res) => {
     }
 });
 
-// Bulk update menu items
 app.put('/api/menu/bulk', requireAdmin, async (req, res) => {
     try {
         const { items } = req.body;
@@ -3050,8 +2899,6 @@ app.put('/api/menu/bulk', requireAdmin, async (req, res) => {
                 nutritionalInfo: item.nutritionalInfo,
                 updatedAt: new Date()
             };
-
-            // Remove undefined values
             Object.keys(updateData).forEach(key => {
                 if (updateData[key] === undefined) delete updateData[key];
             });
@@ -3067,8 +2914,6 @@ app.put('/api/menu/bulk', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Bulk delete menu items
 app.delete('/api/menu/bulk', requireAdmin, async (req, res) => {
     try {
         const { ids } = req.body;
@@ -3084,8 +2929,6 @@ app.delete('/api/menu/bulk', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Update inventory (single item)
 app.put('/api/menu/:id/inventory', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -3102,7 +2945,6 @@ app.put('/api/menu/:id/inventory', requireAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Menu item not found' });
         }
 
-        // Check for low stock notification
         if (menuItem.trackInventory && menuItem.stockQuantity <= menuItem.lowStockThreshold) {
             emitToRoom('admin', 'inventory:low', {
                 menuItemId: id,
@@ -3117,8 +2959,6 @@ app.put('/api/menu/:id/inventory', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Get low stock items
 app.get('/api/menu/low-stock', requireAdmin, async (req, res) => {
     try {
         const menuItems = await MenuItem.find({
@@ -3269,10 +3109,8 @@ app.post('/api/payments/mpesa/callback', async (req, res) => {
 
             console.log('[M-Pesa] Payment successful:', mpesaData);
 
-            // Find order by checkoutRequestId
             const order = await Order.findOne({ mpesaRequestId: CheckoutRequestID });
 
-            // If not found by mpesaRequestId, try to find by account reference (ORDER-XXX)
             let orderFound = order;
             if (!orderFound) {
                 const accountRef = metadata.find(item => item.Name === 'AccountReference')?.Value;
@@ -3287,8 +3125,6 @@ app.post('/api/payments/mpesa/callback', async (req, res) => {
                 orderFound.mpesaTransactionId = mpesaData.transactionId;
                 orderFound.status = 'confirmed';
                 orderFound.updatedAt = new Date();
-
-                // Add to status history
                 const statusHistory = orderFound.statusHistory || [];
                 statusHistory.push({
                     status: 'confirmed',
@@ -3298,11 +3134,7 @@ app.post('/api/payments/mpesa/callback', async (req, res) => {
                 orderFound.statusHistory = statusHistory;
 
                 await orderFound.save();
-
-                // Send order confirmation notification
                 await sendOrderNotifications(orderFound);
-
-                // Emit Socket.IO events for real-time updates
                 emitToRoom('orders', 'order:paymentUpdated', {
                     orderId: orderFound._id,
                     paymentStatus: 'completed',
@@ -3327,7 +3159,6 @@ app.post('/api/payments/mpesa/callback', async (req, res) => {
                     order.paymentStatus = 'failed';
                     order.updatedAt = new Date();
 
-                    // Add to status history
                     const statusHistory = order.statusHistory || [];
                     statusHistory.push({
                         status: 'payment_failed',
@@ -3338,7 +3169,6 @@ app.post('/api/payments/mpesa/callback', async (req, res) => {
 
                     await order.save();
 
-                    // Emit Socket.IO events
                     emitToRoom('orders', 'order:paymentUpdated', {
                         orderId: order._id,
                         paymentStatus: 'failed'
@@ -3418,14 +3248,11 @@ app.get('/api/orders', async (req, res) => {
 
         let query = {};
 
-        // Get filters from query params
         const { status, startDate, endDate, paymentStatus, search } = req.query;
 
         if (req.user) {
-            // Authenticated user - get their orders
             const user = await User.findById(req.user.userId);
             if (user && user.email) {
-                // Allow searching by email or order ID
                 if (search) {
                     query.$or = [
                         { email: user.email },
@@ -3436,11 +3263,8 @@ app.get('/api/orders', async (req, res) => {
                 }
             }
         } else {
-            // Not authenticated - return empty
             return res.json([]);
         }
-
-        // Apply additional filters
         if (status && status !== 'all') {
             query.status = status;
         }
@@ -3463,8 +3287,6 @@ app.get('/api/orders', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Get Order Tracking Info
 app.get('/api/orders/:id/track', async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -3477,8 +3299,6 @@ app.get('/api/orders/:id/track', async (req, res) => {
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
-
-        // Check if user owns this order (or is admin)
         if (req.user) {
             const user = await User.findById(req.user.userId);
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
@@ -3490,8 +3310,6 @@ app.get('/api/orders/:id/track', async (req, res) => {
         } else {
             return res.status(401).json({ error: 'Authentication required' });
         }
-
-        // Build tracking response
         const tracking = {
             orderId: order._id,
             status: order.status,
@@ -3515,8 +3333,6 @@ app.get('/api/orders/:id/track', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Customer Cancel Order
 app.post('/api/orders/:id/cancel', async (req, res) => {
     try {
         if (!req.user) {
@@ -3530,19 +3346,13 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
-
-        // Verify ownership
         const user = await User.findById(req.user.userId);
         if (order.email !== user.email) {
             return res.status(403).json({ error: 'Access denied' });
         }
-
-        // Can only cancel pending or confirmed orders
         if (!['pending', 'confirmed'].includes(order.status)) {
             return res.status(400).json({ error: `Cannot cancel order with status: ${order.status}` });
         }
-
-        // Add to status history
         const statusHistory = order.statusHistory || [];
         statusHistory.push({
             status: 'cancelled',
@@ -3553,8 +3363,6 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
         order.status = 'cancelled';
         order.statusHistory = statusHistory;
         order.updatedAt = new Date();
-
-        // If paid, initiate refund
         if (order.paymentStatus === 'completed') {
             order.paymentStatus = 'refunded';
             order.refundAmount = order.total;
@@ -3571,8 +3379,6 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Modify Order (while pending)
 app.put('/api/orders/:id/modify', async (req, res) => {
     try {
         if (!req.user) {
@@ -3586,23 +3392,17 @@ app.put('/api/orders/:id/modify', async (req, res) => {
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
-
-        // Verify ownership
         const user = await User.findById(req.user.userId);
         if (order.email !== user.email) {
             return res.status(403).json({ error: 'Access denied' });
         }
-
-        // Can only modify pending orders
         if (order.status !== 'pending') {
             return res.status(400).json({ error: 'Can only modify pending orders' });
         }
 
-        // Update items if provided
         if (items && Array.isArray(items)) {
-            // Recalculate totals
             const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const tax = subtotal * 0.16; // 16% tax
+            const tax = subtotal * 0.16;
             const deliveryFee = order.deliveryFee || 0;
 
             order.items = items;
@@ -3610,8 +3410,6 @@ app.put('/api/orders/:id/modify', async (req, res) => {
             order.tax = tax;
             order.total = subtotal + tax + deliveryFee;
         }
-
-        // Update delivery address
         if (deliveryAddress) {
             order.deliveryAddress = deliveryAddress;
         }
@@ -3628,8 +3426,6 @@ app.put('/api/orders/:id/modify', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Re-order (copy previous order items)
 app.post('/api/orders/:id/reorder', async (req, res) => {
     try {
         if (!req.user) {
@@ -3642,14 +3438,10 @@ app.post('/api/orders/:id/reorder', async (req, res) => {
         if (!originalOrder) {
             return res.status(404).json({ error: 'Order not found' });
         }
-
-        // Verify ownership
         const user = await User.findById(req.user.userId);
         if (originalOrder.email !== user.email) {
             return res.status(403).json({ error: 'Access denied' });
         }
-
-        // Create new order with same items
         const newOrderId = 'ORD-' + uuidv4().substring(0, 8).toUpperCase();
         const subtotal = originalOrder.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const tax = subtotal * 0.16;
@@ -3750,10 +3542,6 @@ app.put('/api/orders/:id/status', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// ========== DELIVERY MANAGEMENT ==========
-
-// Estimate Delivery Details (distance, time, fee)
 app.post('/api/orders/:id/estimate-delivery', async (req, res) => {
     try {
         const { id } = req.params;
@@ -3763,14 +3551,11 @@ app.post('/api/orders/:id/estimate-delivery', async (req, res) => {
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
+        const restaurantLat = parseFloat(process.env.RESTAURANT_LAT);
+        const restaurantLng = parseFloat(process.env.RESTAURANT_LNG);
 
-        // Restaurant location (default: Nambale, Busia)
-        const restaurantLat = parseFloat(process.env.RESTAURANT_LAT || '0.0618');
-        const restaurantLng = parseFloat(process.env.RESTAURANT_LNG || '34.1069');
-
-        // Calculate distance using Haversine formula (in km)
         const haversine = (lat1, lon1, lat2, lon2) => {
-            const R = 6371; // Earth radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLng = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -3782,14 +3567,11 @@ app.post('/api/orders/:id/estimate-delivery', async (req, res) => {
 
         const distance = haversine(restaurantLat, restaurantLng, customerLatitude, customerLongitude);
 
-        // Estimate delivery time: 5 min setup + 2 min per km
         const estimatedDeliveryTime = 5 + Math.ceil(distance * 2);
 
-        // Calculate delivery fee: KES 100 base + KES 30 per km
         const deliveryFee = 100 + Math.round(distance * 30);
 
-        // Estimate preparation time based on order complexity
-        let preparationTime = 15; // Base 15 min
+        let preparationTime = 15;
         if (order.items.length > 5) preparationTime = 20;
         if (order.items.some(item => item.name && item.name.toLowerCase().includes('grill'))) preparationTime = 25;
 
@@ -3805,8 +3587,6 @@ app.post('/api/orders/:id/estimate-delivery', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Assign Delivery Partner to Order
 app.post('/api/orders/:id/assign-delivery', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -3833,8 +3613,6 @@ app.post('/api/orders/:id/assign-delivery', requireAdmin, async (req, res) => {
         if (partner.status === 'unavailable' || partner.status === 'offline') {
             return res.status(400).json({ error: 'Delivery partner is not available' });
         }
-
-        // Assign partner to order
         order.deliveryPartner = {
             name: partner.name,
             phone: partner.phone,
@@ -3843,15 +3621,12 @@ app.post('/api/orders/:id/assign-delivery', requireAdmin, async (req, res) => {
             assignedAt: new Date()
         };
 
-        order.status = 'ready'; // Mark as ready for pickup/delivery
+        order.status = 'ready';
         await order.save();
-
-        // Update partner's assigned orders
         partner.assignedOrders.push(id);
         partner.status = 'busy';
         await partner.save();
 
-        // Emit to order room for real-time updates
         emitToRoom('orders', 'order:deliveryAssigned', {
             orderId: id,
             deliveryPartner: {
@@ -3870,8 +3645,6 @@ app.post('/api/orders/:id/assign-delivery', requireAdmin, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Get Available Delivery Partners
 app.get('/api/delivery-partners/available', requireAdmin, async (req, res) => {
     try {
         const partners = await DeliveryPartner.find({
@@ -3894,7 +3667,6 @@ app.get('/api/delivery-partners/available', requireAdmin, async (req, res) => {
     }
 });
 
-// Update Delivery Partner Location (real-time GPS tracking)
 app.put('/api/delivery-partners/:id/location', async (req, res) => {
     try {
         const { id } = req.params;
@@ -3917,8 +3689,6 @@ app.put('/api/delivery-partners/:id/location', async (req, res) => {
         if (!partner) {
             return res.status(404).json({ error: 'Partner not found' });
         }
-
-        // Emit location update to all connected clients
         emitToRoom('admin', 'delivery:locationUpdated', {
             partnerId: id,
             location: { latitude, longitude },
@@ -3930,8 +3700,6 @@ app.put('/api/delivery-partners/:id/location', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Complete Delivery
 app.post('/api/orders/:id/delivery-complete', async (req, res) => {
     try {
         const { id } = req.params;
@@ -3951,7 +3719,6 @@ app.post('/api/orders/:id/delivery-complete', async (req, res) => {
                 partner.assignedOrders = partner.assignedOrders.filter(oid => oid !== id);
                 partner.totalDistance += parseFloat(order.deliveryDistance || 0);
 
-                // Update average delivery time
                 const totalDays = Math.max(1, Math.floor((Date.now() - partner.joinedAt.getTime()) / (24 * 60 * 60 * 1000)));
                 partner.averageDeliveryTime = Math.round((partner.completedOrders * partner.averageDeliveryTime + deliveryTime) / (partner.completedOrders));
 
@@ -3976,7 +3743,6 @@ app.post('/api/orders/:id/delivery-complete', async (req, res) => {
     }
 });
 
-// Get Delivery Partner Profile
 app.get('/api/delivery-partners/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -4002,8 +3768,6 @@ app.get('/api/delivery-partners/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Register Delivery Partner
 app.post('/api/delivery-partners', async (req, res) => {
     try {
         const { name, phone, email, vehicleType, vehiclePlate, bankDetails, documents } = req.body;
@@ -4041,8 +3805,6 @@ app.post('/api/delivery-partners', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Update Delivery Partner Details
 app.put('/api/delivery-partners/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4100,8 +3862,6 @@ app.put('/api/orders/:id/admin', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Cancel Order
 app.post('/api/orders/:id/cancel', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4112,12 +3872,9 @@ app.post('/api/orders/:id/cancel', requireAdmin, async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Cannot cancel already delivered or refunded orders
         if (['delivered', 'refunded', 'cancelled'].includes(order.status)) {
             return res.status(400).json({ error: `Cannot cancel order with status: ${order.status}` });
         }
-
-        // Add to status history
         const statusHistory = order.statusHistory || [];
         statusHistory.push({
             status: 'cancelled',
@@ -4128,8 +3885,6 @@ app.post('/api/orders/:id/cancel', requireAdmin, async (req, res) => {
         order.status = 'cancelled';
         order.statusHistory = statusHistory;
         order.updatedAt = new Date();
-
-        // If paid, mark for refund
         if (order.paymentStatus === 'completed') {
             order.paymentStatus = 'refunded';
             order.refundAmount = order.total;
@@ -4137,8 +3892,6 @@ app.post('/api/orders/:id/cancel', requireAdmin, async (req, res) => {
         }
 
         await order.save();
-
-        // Send cancellation email
         if (order.email) {
             await sendEmailNotification(order.email, `Order Cancelled - #${id}`,
                 `<h2>Your order #${id} has been cancelled.</h2><p>Reason: ${reason || 'No reason provided'}</p>`);
@@ -4153,7 +3906,6 @@ app.post('/api/orders/:id/cancel', requireAdmin, async (req, res) => {
     }
 });
 
-// Process Refund
 app.post('/api/orders/:id/refund', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4172,8 +3924,6 @@ app.post('/api/orders/:id/refund', requireAdmin, async (req, res) => {
         if (refundAmount > order.total) {
             return res.status(400).json({ error: 'Refund amount cannot exceed order total' });
         }
-
-        // Add to status history
         const statusHistory = order.statusHistory || [];
         statusHistory.push({
             status: 'refunded',
@@ -4196,8 +3946,6 @@ app.post('/api/orders/:id/refund', requireAdmin, async (req, res) => {
         }
 
         await order.save();
-
-        // Send refund confirmation email
         if (order.email) {
             await sendEmailNotification(order.email, `Refund Processed - #${id}`,
                 `<!DOCTYPE html>
@@ -4213,8 +3961,6 @@ app.post('/api/orders/:id/refund', requireAdmin, async (req, res) => {
                 </body>
                 </html>`);
         }
-
-        // Emit Socket.IO events for real-time updates
         emitToRoom('orders', 'order:refundProcessed', {
             orderId: id,
             refundAmount,
@@ -4232,7 +3978,6 @@ app.post('/api/orders/:id/refund', requireAdmin, async (req, res) => {
     }
 });
 
-// Initiate M-Pesa B2C Refund (send money to customer's M-Pesa)
 app.post('/api/payments/refund/mpesa', requireAdmin, async (req, res) => {
     try {
         const { phoneNumber, amount, orderId, reason } = req.body;
@@ -4245,17 +3990,13 @@ app.post('/api/payments/refund/mpesa', requireAdmin, async (req, res) => {
         if (!order) {
             return res.status(404).json({ error: 'Order not found' });
         }
-
-        // Format phone number
         const formattedPhone = mpesa.formatPhoneNumber(phoneNumber);
-
-        // For demo/development, simulate B2C
         const isDemo = !process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_CONSUMER_SECRET;
 
         if (isDemo) {
             console.log(`[DEMO] M-Pesa B2C Refund: KES ${amount} to ${formattedPhone}`);
 
-            // Update order status
+
             order.paymentStatus = 'refunded';
             order.refundAmount = amount;
             order.refundReason = reason || 'Refund processed via M-Pesa B2C';
@@ -4263,8 +4004,6 @@ app.post('/api/payments/refund/mpesa', requireAdmin, async (req, res) => {
             order.refundProcessedBy = req.user?.email || 'admin';
             order.updatedAt = new Date();
             await order.save();
-
-            // Send confirmation email
             if (order.email) {
                 await sendEmailNotification(order.email, `Refund Processed - Order #${orderId}`,
                     `<!DOCTYPE html>
@@ -4289,15 +4028,12 @@ app.post('/api/payments/refund/mpesa', requireAdmin, async (req, res) => {
             });
         }
 
-        // Real M-Pesa B2C implementation would go here
         res.status(501).json({ error: 'M-Pesa B2C not configured. Please use manual refund.' });
     } catch (err) {
         console.error('M-Pesa B2C refund error:', err.message);
         res.status(400).json({ error: err.message });
     }
 });
-
-// Request Refund (Customer initiated)
 app.post('/api/orders/:id/request-refund', async (req, res) => {
     try {
         const { id } = req.params;
@@ -4312,18 +4048,15 @@ app.post('/api/orders/:id/request-refund', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Verify the user owns this order
         if (order.userId !== req.user.userId) {
             return res.status(403).json({ error: 'Not authorized to request refund for this order' });
         }
 
-        // Check if order is eligible for refund
         if (order.paymentStatus !== 'completed') {
             return res.status(400).json({ error: 'Order is not eligible for refund' });
         }
 
         if (order.status === 'delivered') {
-            // Check if within refund window (7 days for delivered orders)
             const deliveredAt = order.deliveryCompletedAt || order.updatedAt;
             const daysSinceDelivery = Math.floor((Date.now() - new Date(deliveredAt).getTime()) / (1000 * 60 * 60 * 24));
             if (daysSinceDelivery > 7) {
@@ -4331,7 +4064,6 @@ app.post('/api/orders/:id/request-refund', async (req, res) => {
             }
         }
 
-        // Add refund request to status history
         const statusHistory = order.statusHistory || [];
         statusHistory.push({
             status: 'refund_requested',
@@ -4342,8 +4074,6 @@ app.post('/api/orders/:id/request-refund', async (req, res) => {
         order.refundReason = reason;
         order.updatedAt = new Date();
         await order.save();
-
-        // Notify admin
         const adminEmail = process.env.ADMIN_EMAIL;
         if (adminEmail) {
             await sendEmailNotification(adminEmail, `Refund Requested - Order #${id}`,
@@ -4363,7 +4093,6 @@ app.post('/api/orders/:id/request-refund', async (req, res) => {
                 </html>`);
         }
 
-        // Emit Socket.IO event to admin
         emitToRoom('admin', 'order:refundRequested', {
             orderId: id,
             customerName: order.customerName
@@ -4378,7 +4107,6 @@ app.post('/api/orders/:id/request-refund', async (req, res) => {
     }
 });
 
-// Assign Delivery Person
 app.put('/api/orders/:id/delivery/assign', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4397,7 +4125,6 @@ app.put('/api/orders/:id/delivery/assign', requireAdmin, async (req, res) => {
         order.deliveryAssignedAt = new Date();
         order.updatedAt = new Date();
 
-        // Add status history
         const statusHistory = order.statusHistory || [];
         statusHistory.push({
             status: 'out_for_delivery',
@@ -4412,7 +4139,6 @@ app.put('/api/orders/:id/delivery/assign', requireAdmin, async (req, res) => {
 
         await order.save();
 
-        // Send notification to customer
         if (order.phone) {
             await sendSMSNotification(order.phone, `Your order #${id} is out for delivery! Driver: ${name}, Phone: ${phone}`);
         }
@@ -4425,11 +4151,10 @@ app.put('/api/orders/:id/delivery/assign', requireAdmin, async (req, res) => {
     }
 });
 
-// Update Delivery Status
 app.put('/api/orders/:id/delivery/status', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; // 'started' | 'completed'
+        const { status } = req.body;
 
         const order = await Order.findById(id);
         if (!order) {
@@ -4460,7 +4185,6 @@ app.put('/api/orders/:id/delivery/status', requireAdmin, async (req, res) => {
     }
 });
 
-// Generate Invoice
 app.get('/api/orders/:id/invoice', async (req, res) => {
     try {
         const { id } = req.params;
@@ -4470,13 +4194,11 @@ app.get('/api/orders/:id/invoice', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Generate invoice number if not exists
         if (!order.invoiceNumber) {
             order.invoiceNumber = 'INV-' + Date.now().toString(36).toUpperCase();
             await order.save();
         }
 
-        // Generate HTML invoice
         const itemsHtml = order.items.map(item => `
             <tr>
                 <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.name || 'Item'}</td>
@@ -4566,8 +4288,6 @@ app.get('/api/orders/:id/invoice', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Export Orders (CSV)
 app.get('/api/admin/orders/export', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -4594,7 +4314,6 @@ app.get('/api/admin/orders/export', requireAdmin, async (req, res) => {
         const orders = await Order.find(query).sort({ createdAt: -1 });
 
         if (format === 'csv') {
-            // CSV Export
             const headers = ['Order ID', 'Customer Name', 'Email', 'Phone', 'Items', 'Subtotal', 'Tax', 'Delivery Fee', 'Total', 'Payment Method', 'Payment Status', 'Status', 'Delivery Type', 'Created At'];
             const rows = orders.map(order => [
                 order._id,
@@ -4619,7 +4338,6 @@ app.get('/api/admin/orders/export', requireAdmin, async (req, res) => {
             res.setHeader('Content-Disposition', `attachment; filename=orders_${new Date().toISOString().split('T')[0]}.csv`);
             res.send(csvContent);
         } else {
-            // JSON Export
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', `attachment; filename=orders_${new Date().toISOString().split('T')[0]}.json`);
             res.json(orders);
@@ -4643,8 +4361,6 @@ app.delete('/api/orders/:id', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Customer Complaints
 const complaintSchema = new mongoose.Schema({
     _id: String,
     orderId: String,
@@ -4663,7 +4379,6 @@ const complaintSchema = new mongoose.Schema({
 });
 const Complaint = mongoose.model('Complaint', complaintSchema);
 
-// Submit Complaint
 app.post('/api/complaints', async (req, res) => {
     try {
         const { orderId, customerName, customerEmail, customerPhone, subject, description } = req.body;
@@ -4684,8 +4399,6 @@ app.post('/api/complaints', async (req, res) => {
         });
 
         await complaint.save();
-
-        // Notify admin
         emitToRoom('admin', 'complaint:new', {
             complaintId,
             subject,
@@ -4699,7 +4412,6 @@ app.post('/api/complaints', async (req, res) => {
     }
 });
 
-// Get All Complaints (Admin)
 app.get('/api/admin/complaints', requireAdmin, async (req, res) => {
     try {
         const { status, priority } = req.query;
@@ -4715,7 +4427,6 @@ app.get('/api/admin/complaints', requireAdmin, async (req, res) => {
     }
 });
 
-// Update Complaint Status
 app.put('/api/admin/complaints/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4737,8 +4448,6 @@ app.put('/api/admin/complaints/:id', requireAdmin, async (req, res) => {
         if (!complaint) {
             return res.status(404).json({ error: 'Complaint not found' });
         }
-
-        // Notify customer if resolved
         if (complaint.customerEmail && status === 'resolved') {
             await sendEmailNotification(complaint.customerEmail, `Complaint Resolved - #${id}`,
                 `<h2>Your complaint has been resolved!</h2><p>Reference: ${id}</p><p>Resolution: ${resolution}</p>`);
@@ -4750,7 +4459,6 @@ app.put('/api/admin/complaints/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Payment Disputes
 const disputeSchema = new mongoose.Schema({
     _id: String,
     orderId: String,
@@ -4769,7 +4477,6 @@ const disputeSchema = new mongoose.Schema({
 });
 const Dispute = mongoose.model('Dispute', disputeSchema);
 
-// Create Dispute
 app.post('/api/disputes', async (req, res) => {
     try {
         const { orderId, customerName, customerEmail, customerPhone, amount, reason, evidence } = req.body;
@@ -4792,7 +4499,6 @@ app.post('/api/disputes', async (req, res) => {
 
         await dispute.save();
 
-        // Notify admin
         emitToRoom('admin', 'dispute:new', {
             disputeId,
             orderId,
@@ -4805,8 +4511,6 @@ app.post('/api/disputes', async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Get All Disputes (Admin)
 app.get('/api/admin/disputes', requireAdmin, async (req, res) => {
     try {
         const { status } = req.query;
@@ -4821,7 +4525,6 @@ app.get('/api/admin/disputes', requireAdmin, async (req, res) => {
     }
 });
 
-// Resolve Dispute
 app.put('/api/admin/disputes/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -4842,8 +4545,6 @@ app.put('/api/admin/disputes/:id', requireAdmin, async (req, res) => {
         if (!dispute) {
             return res.status(404).json({ error: 'Dispute not found' });
         }
-
-        // If approved, process refund automatically
         if (status === 'approved' && dispute.orderId) {
             const order = await Order.findById(dispute.orderId);
             if (order && order.paymentStatus === 'completed') {
@@ -4855,8 +4556,6 @@ app.put('/api/admin/disputes/:id', requireAdmin, async (req, res) => {
                 await order.save();
             }
         }
-
-        // Notify customer
         if (dispute.customerEmail) {
             await sendEmailNotification(dispute.customerEmail, `Dispute Update - #${id}`,
                 `<h2>Your dispute has been ${status}!</h2><p>Reference: ${id}</p><p>Resolution: ${resolution}</p>`);
@@ -4867,8 +4566,6 @@ app.put('/api/admin/disputes/:id', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Payment Reconciliation
 app.get('/api/admin/payments/reconciliation', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -4895,7 +4592,6 @@ app.get('/api/admin/payments/reconciliation', requireAdmin, async (req, res) => 
 
         const transactions = await Order.find(query).sort({ createdAt: -1 });
 
-        // Calculate reconciliation summary
         const summary = {
             totalTransactions: transactions.length,
             totalAmount: 0,
@@ -4925,8 +4621,6 @@ app.get('/api/admin/payments/reconciliation', requireAdmin, async (req, res) => 
         res.status(500).json({ error: err.message });
     }
 });
-
-// Transaction History Export
 app.get('/api/admin/transactions/export', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -4975,8 +4669,6 @@ app.get('/api/admin/transactions/export', requireAdmin, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Staff Performance Metrics
 app.get('/api/admin/staff/metrics', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -4992,14 +4684,12 @@ app.get('/api/admin/staff/metrics', requireAdmin, async (req, res) => {
             if (endDate) dateFilter.createdAt.$lte = new Date(endDate);
         }
 
-        // Get all completed orders with delivery person data
         const orders = await Order.find({
             ...dateFilter,
             deliveryPerson: { $exists: true, $ne: null },
             status: { $in: ['delivered', 'completed'] }
         });
 
-        // Group by delivery person
         const staffMetrics = {};
 
         orders.forEach(order => {
@@ -5023,8 +4713,6 @@ app.get('/api/admin/staff/metrics', requireAdmin, async (req, res) => {
                 }
             }
         });
-
-        // Get order status stats
         const allOrders = await Order.find(dateFilter);
         const orderStats = {
             total: allOrders.length,
@@ -5409,44 +5097,35 @@ app.get('/api/admin/orders', requireAdmin, async (req, res) => {
 
         const { status, startDate, endDate, limit, search, paymentStatus, deliveryType, minTotal, maxTotal } = req.query;
         let query = {};
-
-        // Status filter
         if (status && status !== 'all') {
             query.status = status;
         }
 
-        // Payment status filter
         if (paymentStatus && paymentStatus !== 'all') {
             query.paymentStatus = paymentStatus;
         }
 
-        // Delivery type filter
         if (deliveryType && deliveryType !== 'all') {
             query.deliveryType = deliveryType;
         }
-
-        // Date range filter
         if (startDate || endDate) {
             query.createdAt = {};
             if (startDate) {
                 query.createdAt.$gte = new Date(startDate);
             }
             if (endDate) {
-                // Set to end of day
                 const end = new Date(endDate);
                 end.setHours(23, 59, 59, 999);
                 query.createdAt.$lte = end;
             }
         }
 
-        // Total amount range
         if (minTotal || maxTotal) {
             query.total = {};
             if (minTotal) query.total.$gte = parseFloat(minTotal);
             if (maxTotal) query.total.$lte = parseFloat(maxTotal);
         }
 
-        // Search by customer name, email, phone, or order ID
         if (search) {
             const searchRegex = new RegExp(search, 'i');
             query.$or = [
@@ -5691,9 +5370,6 @@ app.put('/api/reservations/:id/status', requireAdmin, async (req, res) => {
     }
 });
 
-// Loyalty Points Endpoints
-
-// Get user's loyalty points
 app.get('/api/loyalty/points', async (req, res) => {
     try {
         if (!req.user) {
@@ -5707,7 +5383,6 @@ app.get('/api/loyalty/points', async (req, res) => {
         let loyalty = await LoyaltyPoints.findOne({ userId: req.user.userId });
 
         if (!loyalty) {
-            // Create new loyalty account
             const referralCode = 'REF-' + uuidv4().substring(0, 8).toUpperCase();
             loyalty = new LoyaltyPoints({
                 _id: 'LOYAL-' + req.user.userId,
@@ -5733,7 +5408,6 @@ app.get('/api/loyalty/points', async (req, res) => {
     }
 });
 
-// Earn points (after order completion)
 app.post('/api/loyalty/earn', async (req, res) => {
     try {
         const { userId, orderId, orderTotal, description } = req.body;
@@ -5746,7 +5420,6 @@ app.post('/api/loyalty/earn', async (req, res) => {
             return res.status(503).json({ error: 'Database unavailable' });
         }
 
-        // Calculate points: 1 point per KES 10 spent
         const pointsEarned = Math.floor(orderTotal / 10);
 
         let loyalty = await LoyaltyPoints.findOne({ userId });
@@ -5780,7 +5453,6 @@ app.post('/api/loyalty/earn', async (req, res) => {
                 createdAt: new Date()
             });
 
-            // Update tier based on lifetime points
             if (loyalty.lifetimePoints >= 50000) {
                 loyalty.tier = 'platinum';
             } else if (loyalty.lifetimePoints >= 25000) {
@@ -5806,7 +5478,6 @@ app.post('/api/loyalty/earn', async (req, res) => {
     }
 });
 
-// Redeem points
 app.post('/api/loyalty/redeem', async (req, res) => {
     try {
         if (!req.user) {
@@ -5833,7 +5504,6 @@ app.post('/api/loyalty/redeem', async (req, res) => {
             return res.status(400).json({ error: 'Insufficient points balance' });
         }
 
-        // Redeem: 100 points = KES 100 discount
         const discountValue = points;
 
         loyalty.points -= points;
@@ -5859,7 +5529,6 @@ app.post('/api/loyalty/redeem', async (req, res) => {
     }
 });
 
-// Referral - Sign up with referral code
 app.post('/api/loyalty/referral', async (req, res) => {
     try {
         if (!req.user) {
@@ -5876,7 +5545,6 @@ app.post('/api/loyalty/referral', async (req, res) => {
             return res.status(503).json({ error: 'Database unavailable' });
         }
 
-        // Find the referrer
         const referrer = await LoyaltyPoints.findOne({ referralCode });
 
         if (!referrer) {
@@ -5887,17 +5555,14 @@ app.post('/api/loyalty/referral', async (req, res) => {
             return res.status(400).json({ error: 'You cannot refer yourself' });
         }
 
-        // Check if user already has a referrer
         const userLoyalty = await LoyaltyPoints.findOne({ userId: req.user.userId });
 
         if (userLoyalty && userLoyalty.referredBy) {
             return res.status(400).json({ error: 'You have already used a referral code' });
         }
 
-        // Award bonus points to both
         const bonusPoints = 500;
 
-        // Update referrer
         referrer.points += bonusPoints;
         referrer.lifetimePoints += bonusPoints;
         referrer.pointsHistory = referrer.pointsHistory || [];
@@ -5910,7 +5575,6 @@ app.post('/api/loyalty/referral', async (req, res) => {
         referrer.updatedAt = new Date();
         await referrer.save();
 
-        // Update user or create account
         if (userLoyalty) {
             userLoyalty.points += bonusPoints;
             userLoyalty.lifetimePoints += bonusPoints;
@@ -5952,9 +5616,6 @@ app.post('/api/loyalty/referral', async (req, res) => {
     }
 });
 
-// Coupon Endpoints
-
-// Validate coupon code
 app.post('/api/coupons/validate', async (req, res) => {
     try {
         const { code, orderTotal, category } = req.body;
@@ -5972,13 +5633,9 @@ app.post('/api/coupons/validate', async (req, res) => {
         if (!coupon) {
             return res.json({ valid: false, error: 'Invalid coupon code' });
         }
-
-        // Check if coupon is active
         if (!coupon.isActive) {
             return res.json({ valid: false, error: 'This coupon is no longer active' });
         }
-
-        // Check validity dates
         const now = new Date();
         if (coupon.validFrom && new Date(coupon.validFrom) > now) {
             return res.json({ valid: false, error: 'This coupon is not yet valid' });
@@ -5987,12 +5644,10 @@ app.post('/api/coupons/validate', async (req, res) => {
             return res.json({ valid: false, error: 'This coupon has expired' });
         }
 
-        // Check max uses
         if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
             return res.json({ valid: false, error: 'This coupon has reached its maximum number of uses' });
         }
 
-        // Check minimum order amount
         if (orderTotal && coupon.minOrderAmount && orderTotal < coupon.minOrderAmount) {
             return res.json({
                 valid: false,
@@ -6000,14 +5655,12 @@ app.post('/api/coupons/validate', async (req, res) => {
             });
         }
 
-        // Check applicable categories
         if (category && coupon.applicableCategories && coupon.applicableCategories.length > 0) {
             if (!coupon.applicableCategories.includes(category)) {
                 return res.json({ valid: false, error: 'This coupon is not applicable to this category' });
             }
         }
 
-        // Calculate discount
         let discount = 0;
         if (coupon.discountType === 'percentage') {
             discount = (orderTotal || 0) * (coupon.discountValue / 100);
@@ -6029,7 +5682,6 @@ app.post('/api/coupons/validate', async (req, res) => {
     }
 });
 
-// Get all active coupons (public)
 app.get('/api/coupons', async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -6043,7 +5695,6 @@ app.get('/api/coupons', async (req, res) => {
     }
 });
 
-// Admin: Create coupon
 app.post('/api/admin/coupons', requireAdmin, async (req, res) => {
     try {
         const { code, description, discountType, discountValue, minOrderAmount, maxUses, validFrom, validUntil, applicableCategories } = req.body;
@@ -6075,7 +5726,6 @@ app.post('/api/admin/coupons', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin: Get all coupons
 app.get('/api/admin/coupons', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -6089,7 +5739,6 @@ app.get('/api/admin/coupons', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin: Update coupon
 app.put('/api/admin/coupons/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6119,7 +5768,6 @@ app.put('/api/admin/coupons/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin: Delete coupon
 app.delete('/api/admin/coupons/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6135,9 +5783,6 @@ app.delete('/api/admin/coupons/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Support Tickets Endpoints
-
-// Create a new ticket
 app.post('/api/tickets', async (req, res) => {
     try {
         const { subject, category, priority, orderId, message } = req.body;
@@ -6167,8 +5812,6 @@ app.post('/api/tickets', async (req, res) => {
         });
 
         await ticket.save();
-
-        // Notify admin
         emitToRoom('admin', 'ticket:new', {
             ticketId,
             subject,
@@ -6182,7 +5825,6 @@ app.post('/api/tickets', async (req, res) => {
     }
 });
 
-// Get user's tickets
 app.get('/api/tickets', async (req, res) => {
     try {
         if (!req.user) {
@@ -6199,8 +5841,6 @@ app.get('/api/tickets', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Get single ticket
 app.get('/api/tickets/:id', async (req, res) => {
     try {
         if (!req.user) {
@@ -6218,8 +5858,6 @@ app.get('/api/tickets/:id', async (req, res) => {
         if (!ticket) {
             return res.status(404).json({ error: 'Ticket not found' });
         }
-
-        // Check ownership or admin
         if (ticket.userId !== req.user.userId) {
             const user = await User.findById(req.user.userId);
             if (!user || !ADMIN_EMAILS.includes(user.email)) {
@@ -6232,8 +5870,6 @@ app.get('/api/tickets/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Add message to ticket
 app.post('/api/tickets/:id/messages', async (req, res) => {
     try {
         if (!req.user) {
@@ -6256,8 +5892,6 @@ app.post('/api/tickets/:id/messages', async (req, res) => {
         if (!ticket) {
             return res.status(404).json({ error: 'Ticket not found' });
         }
-
-        // Check ownership
         if (ticket.userId && ticket.userId !== req.user.userId) {
             return res.status(403).json({ error: 'Access denied' });
         }
@@ -6270,8 +5904,6 @@ app.post('/api/tickets/:id/messages', async (req, res) => {
         });
         ticket.updatedAt = new Date();
         await ticket.save();
-
-        // Notify admin
         emitToRoom('admin', 'ticket:updated', {
             ticketId: id,
             status: ticket.status
@@ -6282,8 +5914,6 @@ app.post('/api/tickets/:id/messages', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Admin: Get all tickets
 app.get('/api/admin/tickets', requireAdmin, async (req, res) => {
     try {
         const { status, priority } = req.query;
@@ -6302,8 +5932,6 @@ app.get('/api/admin/tickets', requireAdmin, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// Admin: Update ticket status
 app.put('/api/admin/tickets/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6322,8 +5950,6 @@ app.put('/api/admin/tickets/:id', requireAdmin, async (req, res) => {
         if (!ticket) {
             return res.status(404).json({ error: 'Ticket not found' });
         }
-
-        // Add admin response if provided
         if (message) {
             ticket.messages = ticket.messages || [];
             ticket.messages.push({
@@ -6333,8 +5959,6 @@ app.put('/api/admin/tickets/:id', requireAdmin, async (req, res) => {
             });
             await ticket.save();
         }
-
-        // Notify user
         if (ticket.userId) {
             emitToRoom('tickets:' + ticket.userId, 'ticket:updated', {
                 ticketId: id,
@@ -6347,10 +5971,6 @@ app.put('/api/admin/tickets/:id', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// FAQ Endpoints
-
-// Get FAQs (public)
 app.get('/api/faqs', async (req, res) => {
     try {
         const { category } = req.query;
@@ -6361,7 +5981,6 @@ app.get('/api/faqs', async (req, res) => {
         }
 
         if (!mongoConnected) {
-            // Return sample FAQs when offline
             return res.json([
                 { _id: '1', question: 'What are your operating hours?', answer: 'We are open from 8:00 AM to 10:00 PM daily.', category: 'general' },
                 { _id: '2', question: 'Do you offer delivery?', answer: 'Yes, we offer delivery within Busia. Delivery fees may apply.', category: 'delivery' },
@@ -6376,7 +5995,6 @@ app.get('/api/faqs', async (req, res) => {
     }
 });
 
-// Admin: Create FAQ
 app.post('/api/admin/faqs', requireAdmin, async (req, res) => {
     try {
         const { question, answer, category, isActive, order } = req.body;
@@ -6401,8 +6019,6 @@ app.post('/api/admin/faqs', requireAdmin, async (req, res) => {
         res.status(400).json({ error: err.message });
     }
 });
-
-// Admin: Get all FAQs
 app.get('/api/admin/faqs', requireAdmin, async (req, res) => {
     try {
         if (!mongoConnected) {
@@ -6416,7 +6032,6 @@ app.get('/api/admin/faqs', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin: Update FAQ
 app.put('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6441,7 +6056,6 @@ app.put('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Admin: Delete FAQ
 app.delete('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6456,10 +6070,6 @@ app.delete('/api/admin/faqs/:id', requireAdmin, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// ========== ORDER MANAGEMENT ENDPOINTS ==========
-
-// Cancel order
 app.post('/api/orders/:id/cancel', async (req, res) => {
     try {
         const { id } = req.params;
@@ -6470,17 +6080,13 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Check if order is already completed/cancelled
         if (['delivered', 'completed', 'cancelled', 'refunded'].includes(order.status)) {
             return res.status(400).json({ error: `Cannot cancel order with status: ${order.status}` });
         }
 
-        // Verify ownership (if user is trying to cancel their own order)
         if (req.user && req.user.email !== order.email && !ADMIN_EMAILS.includes(req.user.email)) {
             return res.status(403).json({ error: 'Access denied' });
         }
-
-        // Update order status
         order.status = 'cancelled';
         order.statusHistory.push({
             status: 'cancelled',
@@ -6488,14 +6094,12 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
             note: reason || 'Order cancelled by user'
         });
 
-        // If payment was made, initiaterefund
         if (order.paymentStatus === 'completed' && ['mpesa', 'card'].includes(order.paymentMethod)) {
             order.paymentStatus = 'refunded';
             order.refundAmount = order.total;
             order.refundReason = reason || 'Customer cancellation';
             order.refundedAt = new Date();
 
-            // Send refund notification email
             if (order.email) {
                 const emailHtml = `
                     <div style="font-family: Arial, max-width: 600px;">
@@ -6524,7 +6128,6 @@ app.post('/api/orders/:id/cancel', async (req, res) => {
     }
 });
 
-// Modify order items (only for pending orders)
 app.put('/api/orders/:id/items', async (req, res) => {
     try {
         const { id } = req.params;
@@ -6535,12 +6138,10 @@ app.put('/api/orders/:id/items', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Only allow modification for pending orders
         if (!['pending', 'confirmed'].includes(order.status)) {
             return res.status(400).json({ error: `Cannot modify order with status: ${order.status}` });
         }
 
-        // Verify ownership
         if (req.user && req.user.email !== order.email && !ADMIN_EMAILS.includes(req.user.email)) {
             return res.status(403).json({ error: 'Access denied' });
         }
@@ -6549,7 +6150,6 @@ app.put('/api/orders/:id/items', async (req, res) => {
             return res.status(400).json({ error: 'Valid items array required' });
         }
 
-        // Recalculate totals
         const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         const tax = subtotal * 0.16;
         const newTotal = subtotal + tax + (order.deliveryFee || 0);
@@ -6567,7 +6167,6 @@ app.put('/api/orders/:id/items', async (req, res) => {
 
         await order.save();
 
-        // If order cost reduced, offer refund
         if (newTotal < order.total) {
             const refundAmount = order.total - newTotal;
             res.json({
@@ -6584,27 +6183,22 @@ app.put('/api/orders/:id/items', async (req, res) => {
     }
 });
 
-// Search and filter orders (Admin)
 app.get('/api/admin/orders/search', requireAdmin, async (req, res) => {
     try {
         const { status, customerEmail, phoneNumber, startDate, endDate, minAmount, maxAmount, paymentStatus } = req.query;
 
         let filter = {};
 
-        // Status filter
         if (status) {
             filter.status = status;
         }
 
-        // Customer filters
         if (customerEmail) {
             filter.email = new RegExp(customerEmail, 'i');
         }
         if (phoneNumber) {
             filter.phone = new RegExp(phoneNumber, 'i');
         }
-
-        // Date range filter
         if (startDate || endDate) {
             filter.createdAt = {};
             if (startDate) {
@@ -6615,7 +6209,6 @@ app.get('/api/admin/orders/search', requireAdmin, async (req, res) => {
             }
         }
 
-        // Amount range filter
         if (minAmount || maxAmount) {
             filter.total = {};
             if (minAmount) {
@@ -6626,7 +6219,6 @@ app.get('/api/admin/orders/search', requireAdmin, async (req, res) => {
             }
         }
 
-        // Payment status filter
         if (paymentStatus) {
             filter.paymentStatus = paymentStatus;
         }
@@ -6653,7 +6245,6 @@ app.get('/api/admin/orders/search', requireAdmin, async (req, res) => {
     }
 });
 
-// Update delivery status
 app.put('/api/orders/:id/delivery', requireAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -6694,7 +6285,6 @@ app.put('/api/orders/:id/delivery', requireAdmin, async (req, res) => {
         order.updatedAt = new Date();
         await order.save();
 
-        // Notify customer of delivery update
         if (order.email && status === 'in_transit') {
             const emailHtml = `
                 <div style="font-family: Arial, max-width: 600px;">
@@ -6716,7 +6306,6 @@ app.put('/api/orders/:id/delivery', requireAdmin, async (req, res) => {
     }
 });
 
-// Generate invoice
 app.get('/api/orders/:id/invoice', async (req, res) => {
     try {
         const { id } = req.params;
@@ -6726,19 +6315,15 @@ app.get('/api/orders/:id/invoice', async (req, res) => {
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        // Verify access
         if (req.user && req.user.email !== order.email && !ADMIN_EMAILS.includes(req.user.email)) {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        // Generate invoice number if not exists
         if (!order.invoiceNumber) {
             const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
             order.invoiceNumber = `INV-${date}-${id.substring(0, 6).toUpperCase()}`;
             await order.save();
         }
-
-        // Create invoice HTML
         const invoiceHtml = `
             <!DOCTYPE html>
             <html>
@@ -6885,17 +6470,14 @@ app.post('/api/admin/setup', async (req, res) => {
             return res.status(400).json({ error: 'Email, password, and name are required' });
         }
 
-        // Check if admin already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(409).json({ error: 'Admin user already exists with this email' });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
         const userId = 'USR-ADMIN-' + uuidv4().substring(0, 8).toUpperCase();
 
-        // Create admin user
         const adminUser = new User({
             _id: userId,
             email,
@@ -6909,7 +6491,6 @@ app.post('/api/admin/setup', async (req, res) => {
 
         await adminUser.save();
 
-        // Generate token
         const token = jwt.sign(
             { userId, email, isAdmin: true },
             JWT_SECRET,
@@ -6959,7 +6540,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 mongoConnected = false;
                 console.warn(' MongoDB disconnected - attempting to reconnect...');
 
-                // Attempt to reconnect with exponential backoff
                 let reconnectAttempts = 0;
                 const maxReconnectAttempts = 5;
                 let reconnectDelay = 3000;
@@ -6992,10 +6572,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 mongoConnected = false;
                 console.error('MongoDB error:', err.message);
             });
-
-            // ========== REFERRAL PROGRAM ===========
-
-            // Generate Unique Referral Code
             app.post('/api/loyalty/generate-referral', async (req, res) => {
                 try {
                     if (!req.user) {
@@ -7018,7 +6594,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Get Referral Stats
             app.get('/api/loyalty/referral-stats', async (req, res) => {
                 try {
                     if (!req.user) {
@@ -7029,8 +6604,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     if (!loyalty) {
                         return res.status(404).json({ error: 'Loyalty account not found' });
                     }
-
-                    // Count referrals
                     const referralCount = await LoyaltyPoints.countDocuments({ referredBy: req.user.userId });
                     const referralBonus = referralCount * 500;
 
@@ -7048,8 +6621,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Convert Loyalty Points to Discount
             app.post('/api/loyalty/convert-to-discount', async (req, res) => {
                 try {
                     if (!req.user) {
@@ -7070,12 +6641,9 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     if (loyalty.points < points) {
                         return res.status(400).json({ error: 'Insufficient points' });
                     }
-
-                    // Conversion: 100 points = KES 100 discount
                     const discountValue = points;
                     const couponCode = 'LOYALTY-' + uuidv4().substring(0, 8).toUpperCase();
 
-                    // Create coupon
                     const coupon = new Coupon({
                         _id: uuidv4(),
                         code: couponCode,
@@ -7091,7 +6659,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     });
                     await coupon.save();
 
-                    // Deduct points from loyalty
                     loyalty.points -= points;
                     loyalty.pointsHistory.push({
                         points: -points,
@@ -7113,17 +6680,12 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // ========== EMAIL MARKETING & CUSTOMER SEGMENTATION ==========
-
-            // Get Customer Segments for Marketing
             app.get('/api/admin/customer-segments', requireAdmin, async (req, res) => {
                 try {
                     if (!mongoConnected) {
                         return res.json([]);
                     }
 
-                    // Segment 1: High Value Customers (spent > KES 10,000)
                     const highValueOrders = await Order.aggregate([
                         {
                             $group: {
@@ -7138,7 +6700,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         }
                     ]);
 
-                    // Segment 2: Active Customers (ordered in last 30 days)
                     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
                     const activeOrders = await Order.aggregate([
                         {
@@ -7153,7 +6714,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         }
                     ]);
 
-                    // Segment 3: At-Risk Customers (no orders in 60 days)
                     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
                     const atRiskOrders = await Order.aggregate([
                         {
@@ -7171,12 +6731,10 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         }
                     ]);
 
-                    // Segment 4: Loyal Members (gold/platinum tier)
                     const loyalMembers = await LoyaltyPoints.find({
                         tier: { $in: ['gold', 'platinum'] }
                     });
 
-                    // Segment 5: New Customers (registered in last 7 days)
                     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
                     const newCustomers = await User.find({
                         createdAt: { $gte: sevenDaysAgo },
@@ -7223,8 +6781,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Send Marketing Email Campaign
             app.post('/api/admin/email-campaign', requireAdmin, async (req, res) => {
                 try {
                     const { segment, subject, htmlContent, recipientEmails } = req.body;
@@ -7239,7 +6795,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
 
                     let recipients = recipientEmails || [];
 
-                    // Get segment recipients if not explicitly provided
                     if (segment) {
                         if (segment === 'highValue') {
                             const orders = await Order.aggregate([
@@ -7257,7 +6812,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     let sentCount = 0;
                     let failedCount = 0;
 
-                    // Send emails in batches
                     for (const email of recipients) {
                         try {
                             await sendEmailNotification(email, subject, htmlContent);
@@ -7280,8 +6834,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Create Marketing Promotion/Campaign
             app.post('/api/admin/promotions', requireAdmin, async (req, res) => {
                 try {
                     const { name, description, discountType, discountValue, minOrderAmount, validFrom, validUntil, applicableCategories, couponCode } = req.body;
@@ -7307,7 +6859,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
 
                     await promotion.save();
 
-                    // Send promotion email to high-value customers
                     const orders = await Order.aggregate([
                         { $group: { _id: '$customerEmail', totalSpent: { $sum: '$total' } } },
                         { $match: { totalSpent: { $gt: 5000 } } }
@@ -7339,8 +6890,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Schedule Newsletter Digest
             app.post('/api/admin/newsletter/schedule', requireAdmin, async (req, res) => {
                 try {
                     const { recipientSegment, frequency } = req.body;
@@ -7365,17 +6914,12 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // ==================== ANALYTICS & INSIGHTS ====================
-
-            // Get Analytics Dashboard Data
             app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
                 try {
                     const range = req.query.range || '30d';
                     const daysBack = range === '7d' ? 7 : range === '90d' ? 90 : 30;
                     const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
 
-                    // Daily revenue and orders
                     const dailyRevenue = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate }, status: { $ne: 'cancelled' } } },
                         {
@@ -7388,8 +6932,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         { $sort: { _id: 1 } },
                         { $project: { date: '$_id', revenue: 1, orders: 1, _id: 0 } }
                     ]);
-
-                    // Top items
                     const topItems = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate } } },
                         { $unwind: '$items' },
@@ -7404,8 +6946,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         { $limit: 15 },
                         { $project: { name: '$_id', orders: 1, revenue: 1, _id: 0 } }
                     ]);
-
-                    // Delivery metrics
                     const deliveryMetrics = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate }, status: 'delivered' } },
                         {
@@ -7421,7 +6961,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         ? Math.round(deliveryMetrics[0].avgTime / (1000 * 60))
                         : 0;
 
-                    // Customer metrics
                     const totalCustomers = await User.countDocuments();
                     const activeMonthly = await Order.distinct('customerId', {
                         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
@@ -7429,8 +6968,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     const newThisMonth = await User.countDocuments({
                         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
                     });
-
-                    // Revenue by order type
                     const revenueByType = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate } } },
                         {
@@ -7442,7 +6979,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         { $project: { type: '$_id', value: 1, _id: 0 } }
                     ]);
 
-                    // Peak hours
                     const peakHours = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate } } },
                         {
@@ -7455,7 +6991,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         { $project: { hour: { $toString: '$_id' }, orders: 1, _id: 0 } }
                     ]);
 
-                    // Payment methods
                     const paymentMethods = await Order.aggregate([
                         { $match: { createdAt: { $gte: startDate } } },
                         {
@@ -7499,12 +7034,8 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // ==================== MENU & RECOMMENDATIONS ====================
-
-            // Get Menu Items (with dietary filters)
             app.get('/api/menu', async (req, res) => {
                 try {
-                    // For now, return mock menu items with dietary info
                     const menuItems = [
                         {
                             _id: '1',
@@ -7573,16 +7104,12 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Get Personalized Menu Recommendations
             app.get('/api/menu/recommendations', requireAuth, async (req, res) => {
                 try {
                     const userId = req.user.id;
 
-                    // Get user's order history
                     const userOrders = await Order.find({ userId }).sort({ createdAt: -1 }).limit(10);
 
-                    // Find most ordered items and recommend similar ones
                     const itemCounts = {};
                     userOrders.forEach(order => {
                         order.items?.forEach(item => {
@@ -7590,7 +7117,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         });
                     });
 
-                    // Mock recommendations based on history
                     const recommendations = [
                         {
                             _id: '2',
@@ -7617,10 +7143,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // ==================== REVIEWS WITH PHOTOS ====================
-
-            // Submit Review with Photos
             app.post('/api/reviews/submit', requireAuth, async (req, res) => {
                 try {
                     const { orderId, rating, title, content } = req.body;
@@ -7629,8 +7151,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     if (!orderId || !rating || !title || !content) {
                         return res.status(400).json({ error: 'Missing required fields' });
                     }
-
-                    // Verify order belongs to user
                     const order = await Order.findOne({ _id: orderId, userId: req.user.id });
                     if (!order) {
                         return res.status(404).json({ error: 'Order not found' });
@@ -7639,9 +7159,7 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     const reviewId = uuidv4();
                     const photos = [];
 
-                    // Save uploaded photos
                     for (const file of files) {
-                        // In production, upload to cloud storage (S3, CloudFlare)
                         photos.push(`/uploads/${reviewId}/${file.filename}`);
                     }
 
@@ -7661,8 +7179,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         createdAt: new Date()
                     };
 
-                    // Save to database (mock for now)
-                    // await ReviewModel.create(review);
 
                     res.status(201).json({
                         message: 'Review submitted successfully',
@@ -7673,13 +7189,10 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Get Reviews for Order
             app.get('/api/reviews', async (req, res) => {
                 try {
                     const { orderId } = req.query;
 
-                    // Mock reviews data
                     const reviews = [
                         {
                             _id: '1',
@@ -7717,7 +7230,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Get Customer Behavior Insights
             app.get('/api/admin/customer-insights', requireAdmin, async (req, res) => {
                 try {
                     const insights = {
@@ -7751,9 +7263,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // ==================== STAFF & INVENTORY MANAGEMENT ====================
-
-            // Get All Staff Members
             app.get('/api/admin/staff', requireAdmin, async (req, res) => {
                 try {
                     const staff = [
@@ -7812,8 +7321,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Add New Staff Member
             app.post('/api/admin/staff', requireAdmin, async (req, res) => {
                 try {
                     const { name, role, email, phone, startDate, shift, hourlyRate, yearsExperience } = req.body;
@@ -7844,8 +7351,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Update Staff Member
             app.put('/api/admin/staff/:staffId', requireAdmin, async (req, res) => {
                 try {
                     const { staffId } = req.params;
@@ -7866,7 +7371,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Delete Staff Member
             app.delete('/api/admin/staff/:staffId', requireAdmin, async (req, res) => {
                 try {
                     const { staffId } = req.params;
@@ -7880,7 +7384,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Get All Inventory Items
             app.get('/api/admin/inventory', requireAdmin, async (req, res) => {
                 try {
                     const inventory = [
@@ -7951,7 +7454,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Add Inventory Item
             app.post('/api/admin/inventory', requireAdmin, async (req, res) => {
                 try {
                     const { name, category, quantity, unit, reorderLevel, supplier, unitCost, expiryDate } = req.body;
@@ -7984,7 +7486,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Update Inventory Item Stock
             app.put('/api/admin/inventory/:itemId', requireAdmin, async (req, res) => {
                 try {
                     const { itemId } = req.params;
@@ -8012,7 +7513,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Delete Inventory Item
             app.delete('/api/admin/inventory/:itemId', requireAdmin, async (req, res) => {
                 try {
                     const { itemId } = req.params;
@@ -8025,8 +7525,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Get Inventory Alerts
             app.get('/api/admin/inventory/alerts', requireAdmin, async (req, res) => {
                 try {
                     const alerts = {
@@ -8049,13 +7547,8 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // ==================== KITCHEN DISPLAY SYSTEM (KDS) ====================
-
-            // Get All Active Orders for Kitchen
             app.get('/api/kitchen/orders', requireAuth, async (req, res) => {
                 try {
-                    // Get unfinished orders ordered by creation time
                     const orders = [
                         {
                             _id: '1',
@@ -8109,8 +7602,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Update Order Status in Kitchen
             app.put('/api/kitchen/orders/:orderId/status', requireAuth, async (req, res) => {
                 try {
                     const { orderId } = req.params;
@@ -8137,7 +7628,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Update Individual Item Status
             app.put('/api/kitchen/orders/:orderId/items/:itemIndex', requireAuth, async (req, res) => {
                 try {
                     const { orderId, itemIndex } = req.params;
@@ -8159,7 +7649,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Mark Order as Complete
             app.put('/api/kitchen/orders/:orderId/complete', requireAuth, async (req, res) => {
                 try {
                     const { orderId } = req.params;
@@ -8174,10 +7663,8 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Get Kitchen Statistics
             app.get('/api/kitchen/stats', requireAuth, async (req, res) => {
                 try {
-                    // If MongoDB not connected, return demo data
                     if (!mongoConnected) {
                         return res.json({
                             pendingOrders: 3,
@@ -8189,7 +7676,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                         });
                     }
 
-                    // Get real stats from database
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
 
@@ -8226,8 +7712,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Get Order Details for Kitchen
             app.get('/api/kitchen/orders/:orderId', requireAuth, async (req, res) => {
                 try {
                     const { orderId } = req.params;
@@ -8253,7 +7737,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Send Order to Kitchen (from waitstaff)
             app.post('/api/kitchen/orders', requireAuth, async (req, res) => {
                 try {
                     const { table, items, specialRequests, priority } = req.body;
@@ -8286,10 +7769,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // ========== TABLES API (Admin) ==========
-
-            // Get all tables
             app.get('/api/admin/tables', requireAdmin, async (req, res) => {
                 try {
                     if (!mongoConnected) {
@@ -8302,8 +7781,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Get single table
             app.get('/api/admin/tables/:id', requireAdmin, async (req, res) => {
                 try {
                     const { id } = req.params;
@@ -8318,8 +7795,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     res.status(500).json({ error: err.message });
                 }
             });
-
-            // Create new table
             app.post('/api/admin/tables', requireAdmin, async (req, res) => {
                 try {
                     const { tableNumber, capacity, section, position } = req.body;
@@ -8347,7 +7822,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Update table
             app.put('/api/admin/tables/:id', requireAdmin, async (req, res) => {
                 try {
                     const { id } = req.params;
@@ -8377,7 +7851,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Delete table
             app.delete('/api/admin/tables/:id', requireAdmin, async (req, res) => {
                 try {
                     const { id } = req.params;
@@ -8394,7 +7867,6 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 }
             });
 
-            // Get table availability stats
             app.get('/api/admin/tables/stats', requireAdmin, async (req, res) => {
                 try {
                     if (!mongoConnected) {

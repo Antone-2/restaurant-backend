@@ -37,7 +37,13 @@ services:
       
       # CORS origins (comma-separated)
       # - key: CORS_ORIGIN
-      #   value: https://your-frontend.vercel.app,https://your-custom-domain.com
+      #   value: https://restaurant-frontend-ochre-rho.vercel.app,https://your-custom-domain.com
+      
+      # ALLOWED_ORIGINS - Required for CORS and Socket.IO (comma-separated)
+      # Format: https://your-frontend.vercel.app,http://localhost:5173
+      # NOTE: Replace 'your-frontend' with your actual Vercel frontend URL
+      - key: ALLOWED_ORIGINS
+        value: https://the-quill.vercel.app
       
       # Optional: MPesa (Safaricom) - only if using M-Pesa
       # - key: MPESA_CONSUMER_KEY
