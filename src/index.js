@@ -733,7 +733,9 @@ const sendOrderNotifications = async (order) => {
     const customerPhone = order.phone;
     const orderNumber = order._id;
     const totalAmount = order.total;
-    const items = order.items.map(item => `${item.name} x${item.quantity}`).join(', ');
+    const items = order.items && Array.isArray(order.items)
+        ? order.items.map(item => `${item.name || 'Item'} x${item.quantity || 1}`).join(', ')
+        : 'No items listed';
     const formattedDate = new Date(order.createdAt).toLocaleDateString('en-GB', {
         day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
