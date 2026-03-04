@@ -6935,7 +6935,7 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 directConnection: false
             };
 
-            await mongoose.connect(process.env.MONGODB_URI, mongoOptions);
+            await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, mongoOptions);
 
             mongoConnected = true;
 
@@ -6956,7 +6956,7 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                     reconnectAttempts++;
                     console.log(` Reconnection attempt ${reconnectAttempts}/${maxReconnectAttempts}...`);
 
-                    mongoose.connect(process.env.MONGODB_URI, mongoOptions)
+                    mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI, mongoOptions)
                         .then(() => {
                             mongoConnected = true;
                             console.log(' MongoDB reconnected successfully!');
