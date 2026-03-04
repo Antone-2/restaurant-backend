@@ -5674,6 +5674,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
         if (!mongoConnected) {
             return res.json({
                 popularItems: [],
+                categoryDistribution: [],
+                dailyRevenue: [],
                 orderStats: { pending: 0, confirmed: 0, preparing: 0, ready: 0, completed: 0, cancelled: 0 },
                 reservationStats: { pending: 0, confirmed: 0, cancelled: 0, completed: 0 },
                 recentOrders: [],
@@ -8070,8 +8072,8 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
                 try {
                     if (!mongoConnected) {
                         return res.json({
-                            pendingOrders: 3,
-                            inProgressOrders: 5,
+                            pendingOrders: [],
+                            inProgressOrders: [],
                             completedOrders: 12,
                             averagePrepTime: 15,
                             totalItemsInQueue: 28,
