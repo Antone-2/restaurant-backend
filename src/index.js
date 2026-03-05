@@ -4925,6 +4925,18 @@ app.post('/api/parking', async (req, res) => {
         const parking = new Parking({ _id: reservationId, slotNumber, ...req.body });
         await parking.save();
         await sendParkingNotifications(parking);
+
+        // Emit real-time notification to admin
+        emitToRoom('admin', 'parking:new', {
+            reservationId,
+            name: parking.name,
+            vehiclePlate: parking.vehiclePlate,
+            slotNumber,
+            date: parking.date,
+            time: parking.time,
+            createdAt: parking.createdAt
+        });
+
         res.status(201).json({ message: 'Parking reserved', reservationId, slotNumber });
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -5085,6 +5097,17 @@ app.post('/api/events', async (req, res) => {
                 `<p>${name} (${email}) wants to book ${eventType} for ${guests} guests on ${date}</p>`);
         }
 
+        // Emit real-time notification to admin
+        emitToRoom('admin', 'event:new', {
+            eventId,
+            name,
+            email,
+            eventType,
+            date,
+            guests,
+            createdAt: event.createdAt
+        });
+
         res.status(201).json({ message: 'Inquiry submitted', eventId });
     } catch (err) {
         res.status(400).json({ error: err.message });
@@ -5117,6 +5140,15 @@ app.post('/api/contact', async (req, res) => {
             await sendEmailNotification(adminEmail, `New Contact from ${name}`,
                 `<p><strong>From:</strong> ${name} (${email})</p><p>${message}</p>`);
         }
+
+        // Emit real-time notification to admin
+        emitToRoom('admin', 'contact:new', {
+            contactId,
+            name,
+            email,
+            message,
+            createdAt: contact.createdAt
+        });
 
         res.status(201).json({ message: 'Message sent', contactId });
     } catch (err) {
