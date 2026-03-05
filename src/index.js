@@ -626,6 +626,29 @@ const couponSchema = new mongoose.Schema({
 });
 const Coupon = mongoose.model('Coupon', couponSchema);
 
+// Campaign Schema
+const campaignSchema = new mongoose.Schema({
+    _id: String,
+    name: { type: String, required: true },
+    type: { type: String, enum: ['email', 'sms', 'push', 'promotion'], required: true },
+    status: { type: String, enum: ['draft', 'scheduled', 'active', 'completed', 'cancelled'], default: 'draft' },
+    audience: { type: String, default: 'all' },
+    sentCount: { type: Number, default: 0 },
+    openRate: { type: Number, default: 0 },
+    clickRate: { type: Number, default: 0 },
+    startDate: Date,
+    endDate: Date,
+    scheduledDate: Date,
+    discount: String,
+    code: String,
+    subject: String,
+    message: String,
+    segment: { type: String, enum: ['all', 'vip', 'loyalty', 'new', 'inactive'], default: 'all' },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+const Campaign = mongoose.model('Campaign', campaignSchema);
+
 const deliveryPartnerSchema = new mongoose.Schema({
     _id: String,
     name: { type: String, required: true },
@@ -5983,6 +6006,243 @@ app.delete('/api/admin/coupons/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// Campaign API endpoints
+app.get('/api/admin/campaigns', requireAdmin, async (req, res) => {
+    try {
+        if (!mongoConnected) {
+            return res.json({ campaigns: [] });
+        }
+        const campaigns = await Campaign.find().sort({ createdAt: -1 });
+        res.json({ campaigns });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/campaigns', requireAdmin, async (req, res) => {
+    try {
+        const { name, type, status, audience, startDate, endDate, scheduledDate, discount, code, subject, message, segment } = req.body;
+
+        if (!name || !type) {
+            return res.status(400).json({ error: 'Name and type are required' });
+        }
+
+        const campaignId = 'CMP-' + uuidv4().substring(0, 8).toUpperCase();
+
+        const campaign = new Campaign({
+            _id: campaignId,
+            name,
+            type,
+            status: status || 'draft',
+            audience: audience || 'all',
+            startDate,
+            endDate,
+            scheduledDate,
+            discount,
+            code,
+            subject,
+            message,
+            segment: segment || 'all',
+            sentCount: 0,
+            openRate: 0,
+            clickRate: 0
+        });
+
+        await campaign.save();
+        res.status(201).json({ message: 'Campaign created', campaign });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/admin/campaigns/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, type, status, audience, startDate, endDate, scheduledDate, discount, code, subject, message, segment, sentCount, openRate, clickRate } = req.body;
+
+        const campaign = await Campaign.findById(id);
+        if (!campaign) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        // Update fields
+        if (name) campaign.name = name;
+        if (type) campaign.type = type;
+        if (status) campaign.status = status;
+        if (audience) campaign.audience = audience;
+        if (startDate) campaign.startDate = startDate;
+        if (endDate) campaign.endDate = endDate;
+        if (scheduledDate) campaign.scheduledDate = scheduledDate;
+        if (discount !== undefined) campaign.discount = discount;
+        if (code !== undefined) campaign.code = code;
+        if (subject !== undefined) campaign.subject = subject;
+        if (message !== undefined) campaign.message = message;
+        if (segment) campaign.segment = segment;
+        if (sentCount !== undefined) campaign.sentCount = sentCount;
+        if (openRate !== undefined) campaign.openRate = openRate;
+        if (clickRate !== undefined) campaign.clickRate = clickRate;
+        campaign.updatedAt = new Date();
+
+        await campaign.save();
+        res.json({ message: 'Campaign updated', campaign });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/admin/campaigns/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const campaign = await Campaign.findByIdAndDelete(id);
+
+        if (!campaign) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        res.json({ message: 'Campaign deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Send campaign (simulate sending)
+app.post('/api/admin/campaigns/:id/send', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const campaign = await Campaign.findById(id);
+
+        if (!campaign) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        // Get subscriber count based on segment
+        let subscriberCount = 0;
+        if (mongoConnected) {
+            const subscriberQuery = campaign.segment === 'all' ? {} : { segment: campaign.segment };
+            subscriberCount = await Subscriber.countDocuments(subscriberQuery) || 10; // Default to 10 if no subscribers
+        } else {
+            subscriberCount = Math.floor(Math.random() * 500) + 100; // Demo count
+        }
+
+        // Update campaign with sent stats
+        campaign.status = 'completed';
+        campaign.sentCount = subscriberCount;
+        campaign.openRate = Math.floor(Math.random() * 30) + 20; // 20-50%
+        campaign.clickRate = Math.floor(Math.random() * 15) + 5; // 5-20%
+        campaign.startDate = new Date();
+        await campaign.save();
+
+        // For email campaigns, send actual emails
+        if (campaign.type === 'email' && mongoConnected) {
+            const subscribers = await Subscriber.find();
+            for (const sub of subscribers.slice(0, 10)) { // Send to first 10 for demo
+                await sendEmailNotification(
+                    sub.email,
+                    campaign.subject || campaign.name,
+                    campaign.message || `<p>You received this message from The Quill Restaurant.</p>`
+                );
+            }
+        }
+
+        res.json({
+            message: 'Campaign sent successfully',
+            campaign,
+            recipients: subscriberCount
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Subscribers API endpoints
+app.get('/api/admin/subscribers', requireAdmin, async (req, res) => {
+    try {
+        if (!mongoConnected) {
+            // Return demo subscribers
+            return res.json({
+                subscribers: [
+                    { _id: 's1', email: 'john.doe@example.com', segment: 'vip', createdAt: '2026-01-15' },
+                    { _id: 's2', email: 'jane.smith@example.com', segment: 'loyalty', createdAt: '2026-01-20' },
+                    { _id: 's3', email: 'bob.wilson@example.com', segment: 'new', createdAt: '2026-02-01' },
+                    { _id: 's4', email: 'alice.johnson@example.com', segment: 'all', createdAt: '2026-02-10' },
+                    { _id: 's5', email: 'charlie.brown@example.com', segment: 'inactive', createdAt: '2025-12-01' },
+                ],
+                stats: { total: 5, active: 4, newThisMonth: 2 }
+            });
+        }
+
+        const subscribers = await Subscriber.find().sort({ createdAt: -1 });
+        const total = await Subscriber.countDocuments();
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const newThisMonth = await Subscriber.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
+
+        res.json({
+            subscribers,
+            stats: {
+                total,
+                active: total - await Subscriber.countDocuments({ segment: 'inactive' }),
+                newThisMonth
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/admin/subscribers', requireAdmin, async (req, res) => {
+    try {
+        const { email, segment } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        if (!mongoConnected) {
+            return res.json({
+                message: 'Subscriber added (demo mode)',
+                subscriber: { _id: 's' + Date.now(), email, segment: segment || 'all', createdAt: new Date().toISOString() }
+            });
+        }
+
+        const existing = await Subscriber.findOne({ email });
+        if (existing) {
+            return res.status(409).json({ error: 'Subscriber already exists' });
+        }
+
+        const subscriberId = 'SUB-' + uuidv4().substring(0, 8).toUpperCase();
+        const subscriber = new Subscriber({
+            _id: subscriberId,
+            email,
+            segment: segment || 'all'
+        });
+
+        await subscriber.save();
+        res.status(201).json({ message: 'Subscriber added', subscriber });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/admin/subscribers/:id', requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoConnected) {
+            return res.json({ message: 'Subscriber deleted (demo mode)' });
+        }
+
+        const subscriber = await Subscriber.findByIdAndDelete(id);
+        if (!subscriber) {
+            return res.status(404).json({ error: 'Subscriber not found' });
+        }
+
+        res.json({ message: 'Subscriber deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/tickets', async (req, res) => {
     try {
         const { subject, category, priority, orderId, message } = req.body;
@@ -7971,11 +8231,61 @@ const connectMongoDB = async (retries = 3, delay = 2000) => {
             });
             app.get('/api/admin/tables', requireAdmin, async (req, res) => {
                 try {
+                    // Return demo tables when MongoDB is not connected
                     if (!mongoConnected) {
-                        return res.json({ tables: [] });
+                        const demoTables = [
+                            { _id: 't1', tableNumber: '1', capacity: 2, section: 'window', status: 'available', isActive: true },
+                            { _id: 't2', tableNumber: '2', capacity: 2, section: 'window', status: 'occupied', isActive: true },
+                            { _id: 't3', tableNumber: '3', capacity: 4, section: 'main', status: 'reserved', isActive: true },
+                            { _id: 't4', tableNumber: '4', capacity: 4, section: 'main', status: 'available', isActive: true },
+                            { _id: 't5', tableNumber: '5', capacity: 6, section: 'main', status: 'occupied', isActive: true },
+                            { _id: 't6', tableNumber: '6', capacity: 6, section: 'private', status: 'available', isActive: true },
+                            { _id: 't7', tableNumber: '7', capacity: 8, section: 'private', status: 'reserved', isActive: true },
+                            { _id: 't8', tableNumber: '8', capacity: 4, section: 'bar', status: 'occupied', isActive: true },
+                            { _id: 't9', tableNumber: '9', capacity: 2, section: 'bar', status: 'available', isActive: true },
+                            { _id: 't10', tableNumber: 'VIP', capacity: 12, section: 'vip', status: 'available', isActive: true },
+                        ];
+                        return res.json({ tables: demoTables });
                     }
 
                     const tables = await Table.find().sort({ tableNumber: 1 });
+
+                    // Update table statuses based on current reservations when database is connected
+                    if (mongoConnected) {
+                        const today = new Date().toISOString().split('T')[0];
+                        const reservations = await Reservation.find({ date: today, status: { $ne: 'cancelled' } });
+
+                        const tablesWithStatus = tables.map(table => {
+                            const tableReservations = reservations.filter(r =>
+                                r.tableName === table.tableNumber ||
+                                r.tableName === `Table ${table.tableNumber}`
+                            );
+
+                            // Check if any reservation is currently active
+                            const now = new Date();
+                            const currentHour = now.getHours();
+                            const activeReservation = tableReservations.find(r => {
+                                const [hours, minutes] = r.time.split(':').map(Number);
+                                const reservationTime = hours * 60 + minutes;
+                                const currentTime = currentHour * 60 + now.getMinutes();
+                                return currentTime >= reservationTime - 30 && currentTime <= reservationTime + 120;
+                            });
+
+                            return {
+                                ...table.toObject(),
+                                status: activeReservation ? 'reserved' :
+                                    (table.status === 'occupied' ? 'occupied' : 'available'),
+                                currentReservation: activeReservation ? {
+                                    name: activeReservation.name,
+                                    time: activeReservation.time,
+                                    guests: activeReservation.guests
+                                } : undefined
+                            };
+                        });
+
+                        return res.json({ tables: tablesWithStatus });
+                    }
+
                     res.json({ tables });
                 } catch (err) {
                     res.status(500).json({ error: err.message });
