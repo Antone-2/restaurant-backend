@@ -193,6 +193,31 @@ const eventInquirySchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Special Event Schema (for managed special events like fundraisers, live music, etc.)
+const specialEventSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    date: { type: Date, required: true },
+    time: { type: String, required: true },
+    type: {
+        type: String,
+        enum: ['fundraiser', 'live-music', 'themed-night', 'wine-tasting', 'other'],
+        required: true
+    },
+    price: { type: String, required: true },
+    capacity: { type: Number, required: true },
+    image: { type: String },
+    isUpcoming: { type: Boolean, default: true },
+    organizer: { type: String },
+    donationPercent: { type: Number },
+    isActive: { type: Boolean, default: true }
+}, { timestamps: true });
+
+// Special Event Indexes
+specialEventSchema.index({ date: 1 });
+specialEventSchema.index({ isUpcoming: 1, date: 1 });
+specialEventSchema.index({ type: 1 });
+
 // Subscriber Schema
 const subscriberSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
@@ -296,6 +321,45 @@ const faqSchema = new mongoose.Schema({
 faqSchema.index({ category: 1, order: 1 });
 faqSchema.index({ isActive: 1 });
 
+// Partnership Schema
+const partnershipSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    organization: { type: String },
+    type: {
+        type: String,
+        enum: ['corporate', 'schools', 'events', 'fundraiser', 'other'],
+        required: true
+    },
+    description: { type: String },
+    email: { type: String },
+    phone: { type: String },
+    contactPerson: { type: String },
+    benefits: [{ type: String }],
+    minPeople: { type: Number, default: 10 },
+    maxPeople: { type: Number, default: 100 },
+    priceRange: { type: String },
+    status: {
+        type: String,
+        enum: ['active', 'inactive', 'pending', 'archived'],
+        default: 'active'
+    },
+    yearsActive: { type: Number, default: 0 },
+    category: {
+        type: String,
+        enum: ['Healthcare', 'Education', 'Government', 'Business', 'Charity', 'Other'],
+        default: 'Business'
+    },
+    isFeatured: { type: Boolean, default: false },
+    notes: { type: String },
+    contractStartDate: { type: Date },
+    contractEndDate: { type: Date }
+}, { timestamps: true });
+
+// Partnership Indexes
+partnershipSchema.index({ type: 1, status: 1 });
+partnershipSchema.index({ category: 1 });
+partnershipSchema.index({ isFeatured: 1 });
+
 // Export models
 const MenuItem = mongoose.model('MenuItem', menuItemSchema);
 const Order = mongoose.model('Order', orderSchema);
@@ -303,11 +367,13 @@ const Reservation = mongoose.model('Reservation', reservationSchema);
 const ParkingReservation = mongoose.model('ParkingReservation', parkingReservationSchema);
 const Review = mongoose.model('Review', reviewSchema);
 const EventInquiry = mongoose.model('EventInquiry', eventInquirySchema);
+const SpecialEvent = mongoose.model('SpecialEvent', specialEventSchema);
 const Subscriber = mongoose.model('Subscriber', subscriberSchema);
 const LoyaltyPoints = mongoose.model('LoyaltyPoints', loyaltyPointsSchema);
 const Coupon = mongoose.model('Coupon', couponSchema);
 const Ticket = mongoose.model('Ticket', ticketSchema);
 const FAQ = mongoose.model('FAQ', faqSchema);
+const Partnership = mongoose.model('Partnership', partnershipSchema);
 
 module.exports = {
     MenuItem,
@@ -316,9 +382,11 @@ module.exports = {
     ParkingReservation,
     Review,
     EventInquiry,
+    SpecialEvent,
     Subscriber,
     LoyaltyPoints,
     Coupon,
     Ticket,
-    FAQ
+    FAQ,
+    Partnership
 };
